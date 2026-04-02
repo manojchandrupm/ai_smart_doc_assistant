@@ -1,0 +1,5 @@
+chatbot_venv/
+__pycache__/
+.env
+*.log
+*.sqlite3git init

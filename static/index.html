@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>AI Smart Document Assistant</title>
+    <link rel="stylesheet" href="/static/style.css" />
+</head>
+<body>
+    <div class="app-container">
+        <!-- Sidebar -->
+        <aside class="sidebar">
+            <h2>AI Doc Bot</h2>
+            <p class="subtitle">Upload a PDF and chat with it</p>
+
+            <div class="upload-card">
+                <label for="pdfFile" class="upload-label">Choose PDF</label>
+                <input type="file" id="pdfFile" accept=".pdf" />
+                <button id="uploadBtn">Upload Document</button>
+                <div id="uploadStatus" class="upload-status">No document uploaded yet.</div>
+            </div>
+        </aside>
+
+        <!-- Main Chat Area -->
+        <main class="chat-container">
+            <header class="chat-header">
+                <h1>Document Chat Assistant</h1>
+            </header>
+
+            <section id="chatBox" class="chat-box">
+                <div class="message bot-message">
+                    <div class="message-content">
+                        Hi! Upload a PDF and ask me questions about it.
+                    </div>
+                </div>
+            </section>
+
+            <footer class="chat-input-area">
+                <textarea
+                    id="questionInput"
+                    placeholder="Ask something about your uploaded document..."
+                    rows="2"
+                ></textarea>
+                <button id="sendBtn">Send</button>
+            </footer>
+        </main>
+    </div>
+
+    <script src="/static/app.js"></script>
+</body>
+</html>
