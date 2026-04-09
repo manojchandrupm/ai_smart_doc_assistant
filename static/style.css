@@ -320,7 +320,7 @@ button:disabled {
 
 .db-label {
     font-size: 0.78rem;
-    color: #a0aec0;
+    color: #393741;
     margin-bottom: 0.5rem;
     font-weight: 600;
     letter-spacing: 0.04em;
@@ -351,7 +351,7 @@ button:disabled {
     font-size: 0.82rem;
     font-weight: 600;
     background: rgba(255, 255, 255, 0.08);
-    color: #cbd5e0;
+    color: #949bac;
     border: 1px solid rgba(255, 255, 255, 0.12);
     transition: background 0.2s, color 0.2s, border-color 0.2s;
 }
