@@ -1,59 +1,119 @@
 import os
+from typing import List
 from fastapi import APIRouter, UploadFile, File, HTTPException
 from config import env
-from models.schemas import UploadResponse
+from models.schemas import MultiUploadResponse, FileUploadResult, FileUploadError
 from services.pdf_service import extract_text_from_pdf
 from services.chunking_service import create_document_chunks
 from services.embedding_service import generate_embedding
-from services.Qdrant_service import store_chunks_in_qdrant
+from services.Qdrant_service import store_chunks_in_qdrant, delete_document_from_qdrant
 
 router = APIRouter(prefix="/upload", tags=["Upload"])
 
+def _is_quota_error_msg(msg: str) -> bool:
+    """Check if an error message indicates an API quota exceeded error."""
+    return 'quota exceeded' in msg.lower() or '429' in msg or 'resource_exhausted' in msg.upper()
 
-@router.post("/", response_model=UploadResponse)
-async def upload_pdf(file: UploadFile = File(...)):
-    if not file.filename:
-        raise HTTPException(status_code=400, detail="No file name provided")
 
-    if not file.filename.lower().endswith(".pdf"):
-        raise HTTPException(status_code=400, detail="Only PDF files are allowed")
+@router.post("/", response_model=MultiUploadResponse)
+async def upload_pdfs(files: List[UploadFile] = File(...)):
+    
+    if not files:
+        raise HTTPException(status_code=400, detail="No files provided.")
 
     os.makedirs(env.UPLOAD_DIR, exist_ok=True)
-    file_path = os.path.join(env.UPLOAD_DIR, file.filename)
 
-    try:
-        content = await file.read()
+    uploaded: List[FileUploadResult] = []
+    errors: List[FileUploadError] = []
 
-        with open(file_path, "wb") as f:
-            f.write(content)
+    for file in files:
+        filename = file.filename or "unknown.pdf"
 
-        pages = extract_text_from_pdf(file_path)
+        if not filename.lower().endswith(".pdf"):
+            errors.append(FileUploadError(filename=filename, error="Only PDF files are allowed."))
+            continue
 
-        if not pages:
-            raise HTTPException(status_code=400, detail="No extractable text found in PDF")
+        file_path = os.path.join(env.UPLOAD_DIR, filename)
 
-        chunks = create_document_chunks(
-            filename=file.filename,
-            pages=pages,
-            chunk_size=env.CHUNK_SIZE,
-            overlap=env.CHUNK_OVERLAP
-        )
+        try:
+            content = await file.read()
 
-        enriched_chunks = []
-        for chunk in chunks:
-            embedding = generate_embedding(chunk["text"])
-            chunk["embedding"] = embedding
-            enriched_chunks.append(chunk)
+            with open(file_path, "wb") as f:
+                f.write(content)
 
-        store_chunks_in_qdrant(enriched_chunks)
+            pages = extract_text_from_pdf(file_path)
 
-        return UploadResponse(
-            message="PDF processed and stored in Qdrant successfully",
-            filename=file.filename,
-            total_chunks=len(enriched_chunks)
-        )
+            if not pages:
+                errors.append(FileUploadError(filename=filename, error="No extractable text found in PDF."))
+                continue
 
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Upload pipeline failed: {str(e)}")
+            chunks = create_document_chunks(
+                filename=filename,
+                pages=pages,
+                chunk_size=env.CHUNK_SIZE,
+                overlap=env.CHUNK_OVERLAP
+            )
+
+            enriched_chunks = []
+            for chunk in chunks:
+                embedding = generate_embedding(chunk["text"])
+                chunk["embedding"] = embedding
+                enriched_chunks.append(chunk)
+
+            store_chunks_in_qdrant(enriched_chunks)
+
+            uploaded.append(FileUploadResult(filename=filename, total_chunks=len(enriched_chunks)))
+
+        except RuntimeError as e:
+            error_msg = str(e)
+            if _is_quota_error_msg(error_msg):
+                # Abort the whole upload immediately with 429 so the client knows to back off
+                raise HTTPException(
+                    status_code=429,
+                    detail=(
+                        f"API quota exceeded while processing '{filename}': "
+                        "The Gemini API rate limit has been reached. "
+                        "Please wait a moment and try again, or check your API quota in Google AI Studio."
+                    )
+                )
+            errors.append(FileUploadError(filename=filename, error=error_msg))
+
+        except Exception as e:
+            errors.append(FileUploadError(filename=filename, error=str(e)))
+
+    total = len(uploaded)
+    failed = len(errors)
+    message = f"{total} file(s) uploaded successfully."
+    if failed:
+        message += f" {failed} file(s) failed."
+
+    return MultiUploadResponse(message=message, uploaded=uploaded, errors=errors)
+
+
+# ─────────────────────────────────────────────────────────
+# List all uploaded documents
+# ─────────────────────────────────────────────────────────
+@router.get("/documents")
+def list_documents():
+    os.makedirs(env.UPLOAD_DIR, exist_ok=True)
+    files = [f for f in os.listdir(env.UPLOAD_DIR) if f.lower().endswith(".pdf")]
+    return {"documents": files}
+
+
+# ─────────────────────────────────────────────────────────
+# Delete a document (disk + Qdrant vectors)
+# ─────────────────────────────────────────────────────────
+@router.delete("/documents/{filename}")
+def delete_document(filename: str):
+    file_path = os.path.join(env.UPLOAD_DIR, filename)
+
+    if not os.path.exists(file_path):
+        raise HTTPException(status_code=404, detail=f"File '{filename}' not found.")
+
+    # Step 1: Remove from Qdrant
+    delete_document_from_qdrant(filename)
+
+    # Step 2: Remove from disk
+    os.remove(file_path)
+
+    return {"message": f"'{filename}' deleted successfully."}

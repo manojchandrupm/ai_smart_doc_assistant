@@ -1,28 +1,30 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>AI Smart Document Assistant</title>
+    <meta name="description" content="Upload PDFs and chat with them using AI-powered semantic search." />
     <link rel="stylesheet" href="/static/style.css" />
 </head>
+
 <body>
     <div class="app-container">
-        <!-- Sidebar -->
+
+        <!-- ── Sidebar ── -->
         <aside class="sidebar">
             <h2>AI Doc Bot</h2>
-            <p class="subtitle">Upload a PDF and chat with it</p>
+            <p class="subtitle">Upload PDFs and chat with them</p>
 
-            <div class="upload-card">
-                <label for="pdfFile" class="upload-label">Choose PDF</label>
-                <input type="file" id="pdfFile" accept=".pdf" />
-                <button id="uploadBtn">Upload Document</button>
-                <div id="uploadStatus" class="upload-status">No document uploaded yet.</div>
-            </div>
+            <nav class="sidebar-nav">
+                <button id="navChat" class="nav-btn active" onclick="showPage('chat')">💬 Chat</button>
+                <button id="navDocs" class="nav-btn" onclick="showPage('documents')">📂 Documents</button>
+            </nav>
         </aside>
 
-        <!-- Main Chat Area -->
-        <main class="chat-container">
+        <!-- ── Chat Page ── -->
+        <main id="chatPage" class="page-container" style="display: flex; flex-direction: column;">
             <header class="chat-header">
                 <h1>Document Chat Assistant</h1>
             </header>
@@ -30,22 +32,49 @@
             <section id="chatBox" class="chat-box">
                 <div class="message bot-message">
                     <div class="message-content">
-                        Hi! Upload a PDF and ask me questions about it.
+                        Hi! Upload a PDF on the Documents tab and ask me questions about it.
                     </div>
                 </div>
             </section>
 
             <footer class="chat-input-area">
-                <textarea
-                    id="questionInput"
-                    placeholder="Ask something about your uploaded document..."
-                    rows="2"
-                ></textarea>
+                <textarea id="questionInput" placeholder="Ask something about your uploaded documents..."
+                    rows="2"></textarea>
                 <button id="sendBtn">Send</button>
             </footer>
         </main>
+
+        <!-- ── Documents Page ── -->
+        <main id="documentsPage" class="page-container" style="display: none; flex-direction: column;">
+            <header class="chat-header">
+                <h1>Document Management</h1>
+            </header>
+
+            <div class="docs-page-body">
+
+                <!-- Upload Card -->
+                <div class="upload-card">
+                    <h3>Upload Documents</h3>
+                    <p class="upload-hint">You can select multiple PDF files at once.</p>
+                    <input type="file" id="pdfFile" accept=".pdf" multiple />
+                    <button id="uploadBtn">Upload Document(s)</button>
+                    <div id="uploadStatus" class="upload-status">No document uploaded yet.</div>
+                </div>
+
+                <!-- Documents List Card -->
+                <div class="docs-list-card">
+                    <h3>Uploaded Documents</h3>
+                    <div id="documentsList" class="documents-list">
+                        <p class="no-docs-msg">Loading...</p>
+                    </div>
+                </div>
+
+            </div>
+        </main>
+
     </div>
 
     <script src="/static/app.js"></script>
 </body>
+
 </html>

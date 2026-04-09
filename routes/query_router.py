@@ -1,11 +1,30 @@
 from fastapi import APIRouter, HTTPException
-from models.schemas import QueryRequest, QueryResponse, RetrievedMatch,QueryReply
+from models.schemas import QueryRequest, QueryResponse, RetrievedMatch, QueryReply
 from services.retrieval_service import retrieve_similar_chunks
-from services.user_query_response_service import generate_query_response,stream_query_response
+from services.user_query_response_service import generate_query_response, stream_query_response
 from fastapi.responses import StreamingResponse
 import asyncio
 
 router = APIRouter(prefix="/query", tags=["Query"])
+
+
+# ─────────────────────────────────────────────────────────
+# Detect general/greeting questions
+# ─────────────────────────────────────────────────────────
+GENERAL_KEYWORDS = [
+    "hi", "hello", "hey", "how are you", "who are you",
+    "what are you", "good morning", "good evening", "good night",
+    "thanks", "thank you", "bye", "goodbye", "what can you do",
+    "what is your name"
+]
+def is_general_question(question: str) -> bool:
+    q = question.lower().strip()
+    return any(keyword in q for keyword in GENERAL_KEYWORDS)
+
+
+# ─────────────────────────────────────────────────────────
+# Non-streaming query endpoint
+# ─────────────────────────────────────────────────────────
 
 @router.post("/", response_model=QueryReply)
 async def query_document(payload: QueryRequest):
@@ -16,7 +35,6 @@ async def query_document(payload: QueryRequest):
 
     try:
         matches = retrieve_similar_chunks(question=question, top_k=payload.top_k)
-
 
         query_reply = QueryResponse(
             question=question,
@@ -29,22 +47,23 @@ async def query_document(payload: QueryRequest):
             chat_history=[msg.model_dump() for msg in payload.chat_history]
         )
 
-        unique_files = list({m["filename"] for m in matches})
+        # CHANGE 4: Only include sources for document questions
+        if is_general_question(question):
+            sources = ""  # No sources for "hi", "how are you", etc.
+        else:
+            unique_files = list({m["filename"] for m in matches})
+            sources = "\n".join(f"From document: {filename}" for filename in unique_files)
 
-        sources = "\n".join(
-            f"From document: {filename}"
-            for filename in unique_files
-        )
 
-        return QueryReply(
-            answer=response,
-            sources=sources
-        )
+        return QueryReply(answer=response, sources=sources)
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Query pipeline failed: {str(e)}")
 
 
+# ─────────────────────────────────────────────────────────
+# Streaming query endpoint
+# ─────────────────────────────────────────────────────────
 @router.post("/stream")
 async def query_document_stream(payload: QueryRequest):
     question = payload.question.strip()
@@ -64,7 +83,11 @@ async def query_document_stream(payload: QueryRequest):
             matches=[RetrievedMatch(**match) for match in matches]
         )
 
+        # Decide before streaming starts whether to show sources
+        general = is_general_question(question)
+
         async def event_generator():
+            # Stream the AI answer word by word
             async for chunk in stream_query_response(
                 query_reply.model_dump(),
                 [msg.model_dump() for msg in payload.chat_history[-6:]]
@@ -75,15 +98,17 @@ async def query_document_stream(payload: QueryRequest):
                     yield token
                     await asyncio.sleep(0.03)
 
-            yield "\n\nSources:\n"
-
-            seen = set()
-            for m in matches:
-                source_key = (m["filename"])
-                if source_key not in seen:
-                    seen.add(source_key)
-                    yield f"- {m['filename']}\n"
-
+        
+            # Only append sources if it's a document question
+            if not general:
+                yield "\n\nSources:\n"
+                seen = set()
+                for m in matches:
+                    if m["filename"] not in seen:
+                        seen.add(m["filename"])
+                        yield f"- {m['filename']}\n"
+            # For general questions: stream ends here with no sources
+            
         return StreamingResponse(
             event_generator(),
             media_type="text/event-stream",

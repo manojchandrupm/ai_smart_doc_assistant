@@ -11,6 +11,19 @@ class UploadResponse(BaseModel):
     filename: str
     total_chunks: int
 
+class FileUploadResult(BaseModel):
+    filename: str
+    total_chunks: int
+
+class FileUploadError(BaseModel):
+    filename: str
+    error: str
+
+class MultiUploadResponse(BaseModel):
+    message: str
+    uploaded: List[FileUploadResult] = []
+    errors: List[FileUploadError] = []
+
 class ChatMessage(BaseModel):
     role: str
     content: str

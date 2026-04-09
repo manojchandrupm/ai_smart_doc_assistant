@@ -1,11 +1,56 @@
 from google import genai
+from google.genai import errors as genai_errors
 import os
 import asyncio
+import time
 from dotenv import load_dotenv
 
 load_dotenv()
 
 client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
+
+MAX_RETRIES = 3
+BASE_BACKOFF = 2  # seconds
+
+QUOTA_ERROR_MESSAGE = (
+    "⚠️ API quota exceeded: The Gemini API rate limit has been reached. "
+    "Please wait a moment and try again, or check your API quota in Google AI Studio."
+)
+
+UNAVAILABLE_ERROR_MESSAGE = (
+    "⚠️ The Gemini model is currently experiencing high demand and is temporarily unavailable. "
+    "Please try again in a few moments."
+)
+
+def _is_quota_error(e: Exception) -> bool:
+    """Returns True if the exception is a Gemini quota/rate-limit error (429)."""
+    status = getattr(e, 'status', None) or getattr(e, 'code', None)
+    return (
+        '429' in str(e) or
+        'RESOURCE_EXHAUSTED' in str(e).upper() or
+        (status is not None and str(status) in ('429', 'RESOURCE_EXHAUSTED'))
+    )
+
+def _is_unavailable_error(e: Exception) -> bool:
+    """Returns True if the exception is a Gemini 503 model-unavailable/overload error."""
+    status = getattr(e, 'status', None) or getattr(e, 'code', None)
+    return (
+        '503' in str(e) or
+        'UNAVAILABLE' in str(e).upper() or
+        (status is not None and str(status) in ('503', 'UNAVAILABLE'))
+    )
+
+def _is_retryable_error(e: Exception) -> bool:
+    """Returns True if the error should trigger a retry (quota or model unavailable)."""
+    return _is_quota_error(e) or _is_unavailable_error(e)
+
+def _friendly_error_message(e: Exception) -> str:
+    """Returns a user-friendly message for known transient Gemini API errors."""
+    if _is_quota_error(e):
+        return QUOTA_ERROR_MESSAGE
+    if _is_unavailable_error(e):
+        return UNAVAILABLE_ERROR_MESSAGE
+    return f"Error generating answer: {str(e)}"
 
 async def generate_query_response(content, chat_history):
 
@@ -63,15 +108,33 @@ Retrieved document context:
 Answer:
             """
 
-    try:
-        response = client.models.generate_content(
-            model="gemini-2.5-flash",
-            contents=prompt
-        )
-        answer = response.text
+    answer = None
+    for attempt in range(1, MAX_RETRIES + 1):
+        try:
+            response = client.models.generate_content(
+                model="gemini-2.5-flash",
+                contents=prompt
+            )
+            answer = response.text
+            break
 
-    except Exception as e:
-        answer = "Error generating answer: " + str(e)
+        except (genai_errors.ClientError, genai_errors.ServerError) as e:
+            if _is_retryable_error(e) and attempt < MAX_RETRIES:
+                wait = BASE_BACKOFF ** attempt
+                error_type = "quota exceeded" if _is_quota_error(e) else "model unavailable (503)"
+                print(f"[QueryResponse] {error_type} — retrying in {wait}s (attempt {attempt}/{MAX_RETRIES})...")
+                await asyncio.sleep(wait)
+                continue
+            # Retries exhausted or non-retryable error
+            answer = _friendly_error_message(e)
+            break
+
+        except Exception as e:
+            answer = f"Error generating answer: {str(e)}"
+            break
+
+    if answer is None:
+        answer = UNAVAILABLE_ERROR_MESSAGE
 
     return answer
 
@@ -143,16 +206,32 @@ Retrieved document context:
 
 Answer:
 """
-    try:
-        stream = await client.aio.models.generate_content_stream(
-            model="gemini-2.5-flash",
-            contents=prompt
-        )
+    for attempt in range(1, MAX_RETRIES + 1):
+        try:
+            stream = await client.aio.models.generate_content_stream(
+                model="gemini-2.5-flash",
+                contents=prompt
+            )
 
-        async for chunk in stream:
-            piece = getattr(chunk, "text", "")
-            if piece:
-                yield piece
+            async for chunk in stream:
+                piece = getattr(chunk, "text", "")
+                if piece:
+                    yield piece
+            return  # Streaming completed successfully
 
-    except Exception as e:
-        yield f"\nError generating answer: {str(e)}"
+        except (genai_errors.ClientError, genai_errors.ServerError) as e:
+            if _is_retryable_error(e) and attempt < MAX_RETRIES:
+                wait = BASE_BACKOFF ** attempt
+                error_type = "quota exceeded" if _is_quota_error(e) else "model unavailable (503)"
+                print(f"[StreamResponse] {error_type} — retrying in {wait}s (attempt {attempt}/{MAX_RETRIES})...")
+                await asyncio.sleep(wait)
+                continue
+            # Retries exhausted or non-retryable error
+            yield f"\n{_friendly_error_message(e)}"
+            return
+
+        except Exception as e:
+            yield f"\nError generating answer: {str(e)}"
+            return
+
+    yield f"\n{UNAVAILABLE_ERROR_MESSAGE}"

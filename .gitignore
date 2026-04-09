@@ -3,4 +3,4 @@ __pycache__/
 .idea/
 .env
 *.log
-*.sqlite3git init
+*.sqlite3

@@ -14,12 +14,12 @@ body {
     height: 100vh;
 }
 
-/* Sidebar */
+/* ─── SIDEBAR ─── */
 .sidebar {
-    width: 300px;
+    width: 220px;
     background: #111827;
     color: white;
-    padding: 24px 18px;
+    padding: 24px 16px;
     display: flex;
     flex-direction: column;
     gap: 20px;
@@ -27,63 +27,57 @@ body {
 
 .sidebar h2 {
     margin: 0;
-    font-size: 24px;
+    font-size: 22px;
 }
 
 .subtitle {
     margin: 0;
     color: #cbd5e1;
-    font-size: 14px;
+    font-size: 13px;
 }
 
-.upload-card {
-    background: #1f2937;
-    padding: 16px;
-    border-radius: 12px;
+/* ─── SIDEBAR NAV BUTTONS (Change 1) ─── */
+.sidebar-nav {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin-top: 8px;
 }
 
-.upload-label {
-    display: block;
-    margin-bottom: 8px;
-    font-size: 14px;
-    color: #e5e7eb;
-}
-
-input[type="file"] {
+.nav-btn {
     width: 100%;
-    margin-bottom: 12px;
-    color: white;
-}
-
-button {
+    text-align: left;
+    background: #1f2937;
+    color: #e5e7eb;
     border: none;
     border-radius: 8px;
     padding: 10px 14px;
-    cursor: pointer;
     font-size: 14px;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+.nav-btn:hover {
+    background: #374151;
+}
+
+/* Active tab looks highlighted */
+.nav-btn.active {
     background: #2563eb;
     color: white;
 }
 
-button:hover {
-    background: #1d4ed8;
-}
-
-.upload-status {
-    margin-top: 12px;
-    font-size: 13px;
-    color: #d1d5db;
-    white-space: pre-wrap;
-}
-
-/* Chat area */
-.chat-container {
+/* ─── MAIN PAGE CONTAINER ─── */
+/* Both Chat and Documents pages share this base style */
+.page-container {
     flex: 1;
     display: flex;
     flex-direction: column;
     background: #ffffff;
+    overflow: hidden;
 }
 
+/* ─── CHAT HEADER ─── */
 .chat-header {
     padding: 18px 24px;
     border-bottom: 1px solid #e5e7eb;
@@ -95,6 +89,7 @@ button:hover {
     font-size: 20px;
 }
 
+/* ─── CHAT BOX ─── */
 .chat-box {
     flex: 1;
     overflow-y: auto;
@@ -139,12 +134,10 @@ button:hover {
     background: #e5e7eb;
     color: #111827;
     border-bottom-left-radius: 0px;
-
     display: inline-block;
     max-width: 900px;
     width: auto;
 }
-
 
 .sources {
     margin-top: 10px;
@@ -154,6 +147,7 @@ button:hover {
     color: #374151;
 }
 
+/* ─── CHAT INPUT ─── */
 .chat-input-area {
     display: flex;
     gap: 12px;
@@ -183,4 +177,135 @@ button:hover {
 .loading {
     font-style: italic;
     color: #6b7280;
+}
+
+/* ─── DOCUMENTS PAGE (Changes 1, 2, 3, 5) ─── */
+.docs-page-body {
+    flex: 1;
+    overflow-y: auto;
+    padding: 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+    background: #f9fafb;
+}
+
+/* Upload Card */
+.upload-card {
+    background: white;
+    border: 1px solid #e5e7eb;
+    border-radius: 12px;
+    padding: 20px 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.upload-card h3 {
+    margin: 0;
+    font-size: 16px;
+    color: #111827;
+}
+
+.upload-hint {
+    margin: 0;
+    font-size: 13px;
+    color: #6b7280;
+}
+
+input[type="file"] {
+    font-size: 14px;
+    color: #374151;
+}
+
+button {
+    border: none;
+    border-radius: 8px;
+    padding: 10px 14px;
+    cursor: pointer;
+    font-size: 14px;
+    background: #2563eb;
+    color: white;
+    width: fit-content;
+}
+
+button:hover {
+    background: #1d4ed8;
+}
+
+button:disabled {
+    background: #93c5fd;
+    cursor: not-allowed;
+}
+
+.upload-status {
+    margin-top: 4px;
+    font-size: 13px;
+    color: #374151;
+    white-space: pre-wrap;
+    line-height: 1.6;
+}
+
+/* Documents List Card */
+.docs-list-card {
+    background: white;
+    border: 1px solid #e5e7eb;
+    border-radius: 12px;
+    padding: 20px 24px;
+}
+
+.docs-list-card h3 {
+    margin: 0 0 16px 0;
+    font-size: 16px;
+    color: #111827;
+}
+
+.documents-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+/* One row per document */
+.doc-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 14px;
+    background: #f3f4f6;
+    border-radius: 8px;
+    border: 1px solid #e5e7eb;
+}
+
+.doc-name {
+    font-size: 14px;
+    color: #1f2937;
+    word-break: break-all;
+}
+
+/* CHANGE 3 — Delete button styled in red */
+.delete-btn {
+    background: #ef4444;
+    color: white;
+    border: none;
+    border-radius: 6px;
+    padding: 6px 12px;
+    font-size: 13px;
+    cursor: pointer;
+    white-space: nowrap;
+    margin-left: 12px;
+    width: auto;
+}
+
+.delete-btn:hover {
+    background: #dc2626;
+}
+
+/* Empty state message */
+.no-docs-msg {
+    font-size: 14px;
+    color: #9ca3af;
+    margin: 0;
+    text-align: center;
+    padding: 20px 0;
 }

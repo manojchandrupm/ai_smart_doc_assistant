@@ -3,7 +3,6 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-
 class Settings:
     QDRANT_API_KEY = os.getenv("QDRANT_API_KEY")
     QDRANT_URL = os.getenv("QDRANT_URL")
@@ -13,7 +12,9 @@ class Settings:
     CHUNK_OVERLAP = int(os.getenv("CHUNK_OVERLAP"))
     APP_NAME = os.getenv("APP_NAME", "AI Smart Document Assistant")
     APP_VERSION = os.getenv("APP_VERSION", "1.0.0")
-
+    MONGO_URI = os.getenv("MONGO_URI")
+    MONGO_DB_NAME = os.getenv("MONGO_DB_NAME")
+    MONGO_COLLECTION_NAME = os.getenv("MONGO_COLLECTION_NAME")
 
 env = Settings()
 
