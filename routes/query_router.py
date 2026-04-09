@@ -1,6 +1,8 @@
 from fastapi import APIRouter, HTTPException
 from models.schemas import QueryRequest, QueryResponse, RetrievedMatch, QueryReply
 from services.retrieval_service import retrieve_similar_chunks
+from services.mongodb_retrieval_service import retrieve_similar_chunks_from_mongodb
+from services.embedding_service import generate_embedding
 from services.user_query_response_service import generate_query_response, stream_query_response
 from fastapi.responses import StreamingResponse
 import asyncio
@@ -21,6 +23,16 @@ def is_general_question(question: str) -> bool:
     q = question.lower().strip()
     return any(keyword in q for keyword in GENERAL_KEYWORDS)
 
+def get_matches(question: str, top_k: int, db_choice: str):
+    """
+    Route retrieval to Qdrant or MongoDB based on db_choice.
+    Both return the same list-of-dicts shape.
+    """
+    if db_choice == "mongodb":
+        query_embedding = generate_embedding(question)
+        return retrieve_similar_chunks_from_mongodb(query_embedding, top_k)
+    else:
+        return retrieve_similar_chunks(question=question, top_k=top_k)
 
 # ─────────────────────────────────────────────────────────
 # Non-streaming query endpoint
@@ -34,7 +46,7 @@ async def query_document(payload: QueryRequest):
         raise HTTPException(status_code=400, detail="Question cannot be empty")
 
     try:
-        matches = retrieve_similar_chunks(question=question, top_k=payload.top_k)
+        matches = get_matches(question, payload.top_k, payload.db_choice)
 
         query_reply = QueryResponse(
             question=question,
@@ -47,7 +59,7 @@ async def query_document(payload: QueryRequest):
             chat_history=[msg.model_dump() for msg in payload.chat_history]
         )
 
-        # CHANGE 4: Only include sources for document questions
+        # Only include sources for document questions
         if is_general_question(question):
             sources = ""  # No sources for "hi", "how are you", etc.
         else:
@@ -72,10 +84,7 @@ async def query_document_stream(payload: QueryRequest):
         raise HTTPException(status_code=400, detail="Question cannot be empty")
 
     try:
-        matches = retrieve_similar_chunks(
-            question=question,
-            top_k=payload.top_k
-        )
+        matches = get_matches(question, payload.top_k, payload.db_choice)
 
         query_reply = QueryResponse(
             question=question,

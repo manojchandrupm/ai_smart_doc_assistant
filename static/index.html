@@ -21,6 +21,8 @@
                 <button id="navChat" class="nav-btn active" onclick="showPage('chat')">💬 Chat</button>
                 <button id="navDocs" class="nav-btn" onclick="showPage('documents')">📂 Documents</button>
             </nav>
+
+
         </aside>
 
         <!-- ── Chat Page ── -->
@@ -56,6 +58,20 @@
                 <div class="upload-card">
                     <h3>Upload Documents</h3>
                     <p class="upload-hint">You can select multiple PDF files at once.</p>
+                    <!-- ── Unified DB selector ── -->
+                    <div class="db-selector">
+                        <p class="db-label">💾 Active Database:</p>
+                        <div class="db-toggle-group">
+                            <label class="db-toggle-option">
+                                <input type="radio" name="activeDb" value="qdrant" checked id="dbQdrant" />
+                                <span>Qdrant</span>
+                            </label>
+                            <label class="db-toggle-option">
+                                <input type="radio" name="activeDb" value="mongodb" id="dbMongodb" />
+                                <span>MongoDB</span>
+                            </label>
+                        </div>
+                    </div>
                     <input type="file" id="pdfFile" accept=".pdf" multiple />
                     <button id="uploadBtn">Upload Document(s)</button>
                     <div id="uploadStatus" class="upload-status">No document uploaded yet.</div>

@@ -1,12 +1,13 @@
 import os
 from typing import List
-from fastapi import APIRouter, UploadFile, File, HTTPException
+from fastapi import APIRouter, UploadFile, File, HTTPException, Form, Query
 from config import env
 from models.schemas import MultiUploadResponse, FileUploadResult, FileUploadError
 from services.pdf_service import extract_text_from_pdf
 from services.chunking_service import create_document_chunks
 from services.embedding_service import generate_embedding
 from services.Qdrant_service import store_chunks_in_qdrant, delete_document_from_qdrant
+from services.mongodb_service import store_chunks_in_mongodb, delete_document_from_mongodb
 
 router = APIRouter(prefix="/upload", tags=["Upload"])
 
@@ -16,10 +17,13 @@ def _is_quota_error_msg(msg: str) -> bool:
 
 
 @router.post("/", response_model=MultiUploadResponse)
-async def upload_pdfs(files: List[UploadFile] = File(...)):
+async def upload_pdfs(files: List[UploadFile] = File(...), db_choice: str = Form("qdrant")):
     
     if not files:
         raise HTTPException(status_code=400, detail="No files provided.")
+
+    if db_choice not in ("qdrant", "mongodb"):
+        raise HTTPException(status_code=400, detail="db_choice must be 'qdrant' or 'mongodb'.")
 
     os.makedirs(env.UPLOAD_DIR, exist_ok=True)
 
@@ -60,9 +64,15 @@ async def upload_pdfs(files: List[UploadFile] = File(...)):
                 chunk["embedding"] = embedding
                 enriched_chunks.append(chunk)
 
-            store_chunks_in_qdrant(enriched_chunks)
+            if db_choice == "mongodb":
+                store_chunks_in_mongodb(enriched_chunks)
+            else:
+                store_chunks_in_qdrant(enriched_chunks)
 
-            uploaded.append(FileUploadResult(filename=filename, total_chunks=len(enriched_chunks)))
+            uploaded.append(FileUploadResult(filename=filename, 
+            total_chunks=len(enriched_chunks),
+            db_choice=db_choice
+            ))
 
         except RuntimeError as e:
             error_msg = str(e)
@@ -101,7 +111,7 @@ def list_documents():
 
 
 # ─────────────────────────────────────────────────────────
-# Delete a document (disk + Qdrant vectors)
+# Delete a document (disk + Qdrant vectors + MongoDB vectors)
 # ─────────────────────────────────────────────────────────
 @router.delete("/documents/{filename}")
 def delete_document(filename: str):
@@ -110,7 +120,8 @@ def delete_document(filename: str):
     if not os.path.exists(file_path):
         raise HTTPException(status_code=404, detail=f"File '{filename}' not found.")
 
-    # Step 1: Remove from Qdrant
+    # Step 1: Remove from BOTH vector stores to guarantee cleanup
+    delete_document_from_mongodb(filename)
     delete_document_from_qdrant(filename)
 
     # Step 2: Remove from disk

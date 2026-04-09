@@ -14,6 +14,7 @@ class UploadResponse(BaseModel):
 class FileUploadResult(BaseModel):
     filename: str
     total_chunks: int
+    db_choice: str = "qdrant"
 
 class FileUploadError(BaseModel):
     filename: str
@@ -32,6 +33,7 @@ class QueryRequest(BaseModel):
     question: str
     top_k: int = 3
     chat_history: List[ChatMessage] = []
+    db_choice: str = "qdrant"
 
 class RetrievedMatch(BaseModel):
     chunk_id: str

@@ -10,6 +10,14 @@ const chatBox = document.getElementById("chatBox");
 let chatHistory = [];
 
 // =============================================
+// Helper: get currently selected DB for upload
+// =============================================
+function getUploadDb() {
+    const selected = document.querySelector('input[name="activeDb"]:checked');
+    return selected ? selected.value : "qdrant";
+}
+
+// =============================================
 // Switch between Chat and Documents pages
 // =============================================
 function showPage(page) {
@@ -62,7 +70,9 @@ async function loadDocuments() {
             // Delete button calls deleteDocument() with the filename
             item.innerHTML = `
                 <span class="doc-name">📄 ${filename}</span>
-                <button class="delete-btn" onclick="deleteDocument('${filename}')">🗑 Delete</button>
+                <div class="doc-actions">
+                    <button class="delete-btn" onclick="deleteDocument('${filename}')">🗑 Delete</button>
+                </div>
             `;
             listContainer.appendChild(item);
         });
@@ -74,9 +84,10 @@ async function loadDocuments() {
 }
 
 // =============================================
-// Delete a document (removes PDF file + Qdrant vectors)
+// Delete a document (removes PDF file + Qdrant vectors + MongoDB data)
 // =============================================
 async function deleteDocument(filename) {
+
     // Ask user to confirm before deleting
     const confirmed = confirm(
         `Are you sure you want to delete "${filename}"?\n` +
@@ -100,6 +111,7 @@ async function deleteDocument(filename) {
 
         alert(`"${filename}" has been deleted successfully.`);
         loadDocuments(); // Refresh the list to reflect deletion
+
     } catch (error) {
         alert("Something went wrong while deleting.");
         console.error("Delete error:", error);
@@ -115,10 +127,16 @@ uploadBtn.addEventListener("click", async () => {
     }
     // Append ALL selected files into FormData under the key "files"
     // The backend List[UploadFile] reads all files with that key name
+
+    const dbChoice = getUploadDb();
+
     const formData = new FormData();
     for (const file of pdfFile.files) {
         formData.append("files", file);
     }
+
+    formData.append("db_choice", dbChoice);
+
     try {
         uploadBtn.disabled = true;
         uploadStatus.textContent = `⏳ Uploading ${pdfFile.files.length} file(s)... Please wait.`;
@@ -143,6 +161,7 @@ uploadBtn.addEventListener("click", async () => {
         data.errors.forEach(e => {
             statusText += `❌ ${e.filename}: ${e.error}\n`;
         });
+
         uploadStatus.textContent = statusText;
         // Refresh doc list to show the newly uploaded files
         loadDocuments();
@@ -203,6 +222,9 @@ async function sendQuestion() {
 
     // Create a placeholder bot message that will be updated as tokens stream in
     const botMessageContent = addMessage("thinking..........", "bot");
+
+    const dbChoice = getUploadDb();
+
     try {
         const response = await fetch("/query/stream", {
             method: "POST",
@@ -210,7 +232,8 @@ async function sendQuestion() {
             body: JSON.stringify({
                 question: question,
                 top_k: 3,
-                chat_history: chatHistory
+                chat_history: chatHistory,
+                db_choice: dbChoice
             })
         });
 
