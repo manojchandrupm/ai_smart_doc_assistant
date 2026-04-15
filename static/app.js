@@ -61,11 +61,19 @@ async function checkAuth() {
         const response = await fetch("/auth/me", { headers: getAuthHeaders() });
         if (response.ok) {
             showPage("chat"); // Logged in!
+        } else if (response.status === 401) {
+            // Token is expired or invalid — clear it and go to login
+            localStorage.removeItem("token");
+            currentSessionId = null;
+            showPage("auth");
         } else {
-            logout(); // Token expired or invalid
+            // Server error (5xx) or other — don't wipe the token, just show login
+            showPage("auth");
         }
     } catch (error) {
-        logout();
+        // Network error (e.g. server cold-starting on Render) — don't wipe the token
+        // Show auth page so user can retry, but keep the stored token
+        showPage("auth");
     }
 }
 
