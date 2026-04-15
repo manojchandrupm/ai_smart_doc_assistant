@@ -7,6 +7,7 @@ from routes.query_router import router as query_router
 from routes.auth_router import router as auth_router
 from routes.chat import router as chat_router
 from routes.documents import router as documents_router
+from routes.debug_router import router as debug_router
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from services.Qdrant_service import qdrant_client
@@ -54,14 +55,11 @@ app = FastAPI(
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
 app.include_router(upload_router)
-
 app.include_router(query_router)
-
 app.include_router(auth_router)
-
 app.include_router(chat_router)
-
 app.include_router(documents_router)
+app.include_router(debug_router)  # TODO: remove after debugging
 
 @app.get("/")
 async def serve_home():

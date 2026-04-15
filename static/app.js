@@ -193,11 +193,21 @@ async function loadDocuments() {
 
     try {
         const response = await fetch("/documents/", { headers: getAuthHeaders() });
+
+        // Check auth status BEFORE parsing body
+        if (response.status === 401) {
+            showPage("auth"); // Don't wipe token here; user will re-login
+            return;
+        }
+
+        if (!response.ok) {
+            listContainer.innerHTML = "<p class='no-docs-msg'>Server error loading documents. Please try again.</p>";
+            return;
+        }
+
         const data = await response.json();
 
-        if (response.status === 401) { logout(); return; }
-
-        if (data.length === 0) {
+        if (!Array.isArray(data) || data.length === 0) {
             listContainer.innerHTML = "<p class='no-docs-msg'>No documents uploaded yet.</p>";
             return;
         }
@@ -231,7 +241,8 @@ async function deleteDocument(docId, filename) {
             method: "DELETE",
             headers: getAuthHeaders()
         });
-        if (response.status === 401) { logout(); return; }
+
+        if (response.status === 401) { showPage("auth"); return; }
 
         if (!response.ok) {
             alert("Failed to delete the document.");
@@ -345,7 +356,7 @@ async function sendQuestion() {
             body: JSON.stringify(payload)
         });
 
-        if (response.status === 401) { logout(); return; }
+        if (response.status === 401) { showPage("auth"); return; }
 
         if (!response.ok) {
             loadingBubble.textContent = "Failed to get response.";
