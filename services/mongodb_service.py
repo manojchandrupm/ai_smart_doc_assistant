@@ -32,6 +32,9 @@ def get_chunks_by_filename(filename: str):
     return list(collection.find({"filename": filename}, {"_id": 0}))
 
 
-def delete_document_from_mongodb(filename: str):
-    result = collection.delete_many({"filename": filename})
+def delete_document_from_mongodb(filename: str, user_id: str = None):
+    query = {"filename": filename}
+    if user_id:
+        query["user_id"] = user_id
+    result = collection.delete_many(query)
     return result.deleted_count
