@@ -1,6 +1,6 @@
 import os
 from typing import List
-from fastapi import APIRouter, UploadFile, File, HTTPException, Form, Query
+from fastapi import APIRouter, UploadFile, File, HTTPException, Form, Query,Depends
 from config import env
 from models.schemas import MultiUploadResponse, FileUploadResult, FileUploadError
 from services.pdf_service import extract_text_from_pdf
@@ -8,6 +8,9 @@ from services.chunking_service import create_document_chunks
 from services.embedding_service import generate_embedding
 from services.Qdrant_service import store_chunks_in_qdrant, delete_document_from_qdrant
 from services.mongodb_service import store_chunks_in_mongodb, delete_document_from_mongodb
+
+from core.dependencies import get_current_user
+from services.document_service import create_document_record
 
 router = APIRouter(prefix="/upload", tags=["Upload"])
 
@@ -17,7 +20,11 @@ def _is_quota_error_msg(msg: str) -> bool:
 
 
 @router.post("/", response_model=MultiUploadResponse)
-async def upload_pdfs(files: List[UploadFile] = File(...), db_choice: str = Form("qdrant")):
+async def upload_pdfs(
+    files: List[UploadFile] = File(...), 
+    db_choice: str = Form("qdrant"),
+    current_user: dict = Depends(get_current_user)
+):
     
     if not files:
         raise HTTPException(status_code=400, detail="No files provided.")
@@ -30,6 +37,8 @@ async def upload_pdfs(files: List[UploadFile] = File(...), db_choice: str = Form
     uploaded: List[FileUploadResult] = []
     errors: List[FileUploadError] = []
 
+    user_id = str(current_user["_id"])
+
     for file in files:
         filename = file.filename or "unknown.pdf"
 
@@ -37,13 +46,23 @@ async def upload_pdfs(files: List[UploadFile] = File(...), db_choice: str = Form
             errors.append(FileUploadError(filename=filename, error="Only PDF files are allowed."))
             continue
 
-        file_path = os.path.join(env.UPLOAD_DIR, filename)
+        safe_filename = f"{user_id}_{file.filename}"
+        file_path = os.path.join(env.UPLOAD_DIR, safe_filename)
 
         try:
             content = await file.read()
 
             with open(file_path, "wb") as f:
                 f.write(content)
+
+            document = create_document_record(
+                user_id=user_id,
+                filename=file.filename,
+                storage_path=file_path,
+                vector_backend="qdrant"
+            )
+
+            document_id = str(document["_id"])
 
             pages = extract_text_from_pdf(file_path)
 
@@ -61,7 +80,15 @@ async def upload_pdfs(files: List[UploadFile] = File(...), db_choice: str = Form
             enriched_chunks = []
             for chunk in chunks:
                 embedding = generate_embedding(chunk["text"])
+
                 chunk["embedding"] = embedding
+
+                chunk["user_id"] = user_id
+                chunk["document_id"] = document_id
+                chunk["stored_filename"] = safe_filename
+                chunk["original_filename"] = filename
+                chunk["vector_backend"] = db_choice
+
                 enriched_chunks.append(chunk)
 
             if db_choice == "mongodb":
@@ -69,10 +96,13 @@ async def upload_pdfs(files: List[UploadFile] = File(...), db_choice: str = Form
             else:
                 store_chunks_in_qdrant(enriched_chunks)
 
-            uploaded.append(FileUploadResult(filename=filename, 
-            total_chunks=len(enriched_chunks),
-            db_choice=db_choice
-            ))
+            uploaded.append(
+                FileUploadResult(
+                    filename=filename, 
+                    total_chunks=len(enriched_chunks),
+                    db_choice=db_choice
+                )
+            )
 
         except RuntimeError as e:
             error_msg = str(e)
@@ -104,9 +134,14 @@ async def upload_pdfs(files: List[UploadFile] = File(...), db_choice: str = Form
 # List all uploaded documents
 # ─────────────────────────────────────────────────────────
 @router.get("/documents")
-def list_documents():
+def list_documents(current_user: dict = Depends(get_current_user)):
+    
     os.makedirs(env.UPLOAD_DIR, exist_ok=True)
-    files = [f for f in os.listdir(env.UPLOAD_DIR) if f.lower().endswith(".pdf")]
+    user_id = str(current_user["_id"])
+    files = [
+        f for f in os.listdir(env.UPLOAD_DIR)
+        if f.lower().endswith(".pdf") and f.startswith(f"{user_id}_")
+    ]
     return {"documents": files}
 
 
@@ -114,15 +149,19 @@ def list_documents():
 # Delete a document (disk + Qdrant vectors + MongoDB vectors)
 # ─────────────────────────────────────────────────────────
 @router.delete("/documents/{filename}")
-def delete_document(filename: str):
-    file_path = os.path.join(env.UPLOAD_DIR, filename)
+def delete_document(filename: str, current_user: dict = Depends(get_current_user)):
+    
+    user_id = str(current_user["_id"])
+    safe_filename = f"{user_id}_{filename}"
+    file_path = os.path.join(env.UPLOAD_DIR, safe_filename)
 
     if not os.path.exists(file_path):
         raise HTTPException(status_code=404, detail=f"File '{filename}' not found.")
 
+
     # Step 1: Remove from BOTH vector stores to guarantee cleanup
-    delete_document_from_mongodb(filename)
-    delete_document_from_qdrant(filename)
+    delete_document_from_mongodb(filename=filename, user_id=user_id)
+    delete_document_from_qdrant(filename=filename, user_id=user_id)
 
     # Step 2: Remove from disk
     os.remove(file_path)

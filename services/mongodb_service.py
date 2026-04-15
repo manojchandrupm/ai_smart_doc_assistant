@@ -5,7 +5,10 @@ from config import env
 client = MongoClient(env.MONGO_URI)
 db = client[env.MONGO_DB_NAME]
 collection = db[env.MONGO_COLLECTION_NAME]
-
+users_collection = db["users"]
+documents_collection = db["documents"]
+chat_sessions_collection = db["chat_sessions"]
+chat_messages_collection = db["chat_messages"]
 
 def store_chunks_in_mongodb(chunks):
     docs = []

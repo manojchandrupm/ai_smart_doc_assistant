@@ -16,5 +16,9 @@ class Settings:
     MONGO_DB_NAME = os.getenv("MONGO_DB_NAME")
     MONGO_COLLECTION_NAME = os.getenv("MONGO_COLLECTION_NAME")
 
+    JWT_SECRET_KEY = os.getenv("JWT_SECRET_KEY")
+    JWT_ALGORITHM = os.getenv("JWT_ALGORITHM")
+    ACCESS_TOKEN_EXPIRE_MINUTES = os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES")
+
 env = Settings()
 

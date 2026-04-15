@@ -366,3 +366,51 @@ button:disabled {
 .db-toggle-option:hover span {
     background: rgba(255, 255, 255, 0.15);
 }
+
+/* =============================================
+   Authentication Page Styles
+   ============================================= */
+.auth-card {
+    background: white;
+    padding: 30px;
+    border-radius: 12px;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    width: 100%;
+    max-width: 400px;
+    text-align: center;
+}
+
+.auth-card h1 {
+    margin-bottom: 20px;
+    font-size: 1.5rem;
+}
+
+.auth-card input {
+    width: 100%;
+    padding: 10px;
+    margin-bottom: 15px;
+    border: 1px solid #ddd;
+    border-radius: 6px;
+    font-size: 1rem;
+}
+
+.auth-card button {
+    width: 100%;
+    padding: 10px;
+    background: #007bff;
+    color: white;
+    border: none;
+    border-radius: 6px;
+    font-size: 1rem;
+    cursor: pointer;
+}
+
+.auth-card button:hover {
+    background: #0056b3;
+}
+
+.auth-card a {
+    color: #007bff;
+    text-decoration: none;
+    font-size: 0.9rem;
+}

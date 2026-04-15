@@ -1,5 +1,6 @@
 from typing import List, Dict
 from qdrant_client import QdrantClient
+from qdrant_client.models import Filter, FieldCondition, MatchValue
 from config import env
 from services.embedding_service import generate_embedding
 
@@ -9,7 +10,7 @@ qdrant_client = QdrantClient(
     api_key=env.QDRANT_API_KEY,
 )
 
-def retrieve_similar_chunks(question, top_k = 3) -> List[Dict]:
+def retrieve_similar_chunks(question, user_id, top_k = 3) -> List[Dict]:
     """
     Convert the user question into an embedding,
     search Qdrant, and return top-k matching chunks.
@@ -20,7 +21,15 @@ def retrieve_similar_chunks(question, top_k = 3) -> List[Dict]:
         collection_name=env.COLLECTION_NAME,
         query=query_vector,
         limit=top_k,
-        with_payload=True
+        with_payload=True,
+        query_filter=Filter(
+            must=[
+                FieldCondition(
+                    key="user_id",
+                    match=MatchValue(value=user_id)
+                )
+            ]
+        )
     )
 
     matches = []
@@ -30,6 +39,8 @@ def retrieve_similar_chunks(question, top_k = 3) -> List[Dict]:
 
         matches.append({
             "chunk_id": payload.get("chunk_id", ""),
+            "user_id": payload.get("user_id", ""),
+            "document_id": payload.get("document_id", ""),
             "filename": payload.get("filename", ""),
             "page": payload.get("page", 0),
             "chunk_index": payload.get("chunk_index", 0),

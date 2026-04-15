@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Depends
 from models.schemas import QueryRequest, QueryResponse, RetrievedMatch, QueryReply
 from services.retrieval_service import retrieve_similar_chunks
 from services.mongodb_retrieval_service import retrieve_similar_chunks_from_mongodb
@@ -6,6 +6,7 @@ from services.embedding_service import generate_embedding
 from services.user_query_response_service import generate_query_response, stream_query_response
 from fastapi.responses import StreamingResponse
 import asyncio
+from core.dependencies import get_current_user
 
 router = APIRouter(prefix="/query", tags=["Query"])
 
@@ -23,30 +24,32 @@ def is_general_question(question: str) -> bool:
     q = question.lower().strip()
     return any(keyword in q for keyword in GENERAL_KEYWORDS)
 
-def get_matches(question: str, top_k: int, db_choice: str):
+def get_matches(question: str, top_k: int, db_choice: str, user_id: str):
     """
     Route retrieval to Qdrant or MongoDB based on db_choice.
     Both return the same list-of-dicts shape.
     """
     if db_choice == "mongodb":
         query_embedding = generate_embedding(question)
-        return retrieve_similar_chunks_from_mongodb(query_embedding, top_k)
+        return retrieve_similar_chunks_from_mongodb(query_embedding, top_k, user_id)
     else:
-        return retrieve_similar_chunks(question=question, top_k=top_k)
+        return retrieve_similar_chunks(question=question, top_k=top_k, user_id=user_id)
 
 # ─────────────────────────────────────────────────────────
 # Non-streaming query endpoint
 # ─────────────────────────────────────────────────────────
 
 @router.post("/", response_model=QueryReply)
-async def query_document(payload: QueryRequest):
+async def query_document(payload: QueryRequest, current_user: dict = Depends(get_current_user)):
     question = payload.question.strip()
 
     if not question:
         raise HTTPException(status_code=400, detail="Question cannot be empty")
 
+    user_id = str(current_user["_id"])
+
     try:
-        matches = get_matches(question, payload.top_k, payload.db_choice)
+        matches = get_matches(question, payload.top_k, payload.db_choice, user_id)
 
         query_reply = QueryResponse(
             question=question,
@@ -77,14 +80,16 @@ async def query_document(payload: QueryRequest):
 # Streaming query endpoint
 # ─────────────────────────────────────────────────────────
 @router.post("/stream")
-async def query_document_stream(payload: QueryRequest):
+async def query_document_stream(payload: QueryRequest, current_user: dict = Depends(get_current_user)):
     question = payload.question.strip()
 
     if not question:
         raise HTTPException(status_code=400, detail="Question cannot be empty")
 
+    user_id = str(current_user["_id"])
+
     try:
-        matches = get_matches(question, payload.top_k, payload.db_choice)
+        matches = get_matches(question, payload.top_k, payload.db_choice, user_id)
 
         query_reply = QueryResponse(
             question=question,

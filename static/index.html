@@ -6,14 +6,14 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>AI Smart Document Assistant</title>
     <meta name="description" content="Upload PDFs and chat with them using AI-powered semantic search." />
-    <link rel="stylesheet" href="/static/style.css" />
+    <link rel="stylesheet" href="/static/style.css?v=3" />
 </head>
 
 <body>
     <div class="app-container">
 
         <!-- ── Sidebar ── -->
-        <aside class="sidebar">
+        <aside class="sidebar" id="appSidebar" style="display: none;">
             <h2>AI Doc Bot</h2>
             <p class="subtitle">Upload PDFs and chat with them</p>
 
@@ -22,11 +22,43 @@
                 <button id="navDocs" class="nav-btn" onclick="showPage('documents')">📂 Documents</button>
             </nav>
 
+            <!-- NEW: Logout Button -->
+            <div style="margin-top: auto; padding: 20px 0;">
+                <button class="nav-btn" onclick="logout()" style="color: #ff6b6b">🚪 Logout</button>
+            </div>
 
         </aside>
 
+        <!-- ── NEW: Auth Page (Login / Register) ── -->
+        <main id="authPage" class="page-container"
+            style="display: flex; flex-direction: column; align-items: center; justify-content: center;">
+            <div class="auth-card">
+                <h1 id="authTitle">Login</h1>
+
+                <form id="authForm" onsubmit="handleAuth(event)">
+                    <!-- Email Input -->
+                    <input type="email" id="authEmail" placeholder="Email Address" required />
+                    <!-- Password Input -->
+                    <input type="password" id="authPassword" placeholder="Password" required />
+
+                    <!-- Confirm Password (Hidden by default, used for Register) -->
+                    <input type="password" id="authConfirmPassword" placeholder="Confirm Password"
+                        style="display: none;" />
+
+                    <button type="submit" id="authSubmitBtn">Login</button>
+                </form>
+
+                <p id="authError" style="color: red; display: none; margin-top: 10px;"></p>
+
+                <!-- Toggle between Login and Register -->
+                <p style="margin-top: 15px;">
+                    <a href="#" id="authToggleBtn" onclick="toggleAuthMode()">Need an account? Register here.</a>
+                </p>
+            </div>
+        </main>
+
         <!-- ── Chat Page ── -->
-        <main id="chatPage" class="page-container" style="display: flex; flex-direction: column;">
+        <main id="chatPage" class="page-container" style="display: none; flex-direction: column;">
             <header class="chat-header">
                 <h1>Document Chat Assistant</h1>
             </header>
@@ -90,7 +122,7 @@
 
     </div>
 
-    <script src="/static/app.js"></script>
+    <script src="/static/app.js?v=3"></script>
 </body>
 
 </html>
