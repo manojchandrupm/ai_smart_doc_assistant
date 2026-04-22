@@ -59,7 +59,7 @@ async def upload_pdfs(
                 user_id=user_id,
                 filename=file.filename,
                 storage_path=file_path,
-                vector_backend="qdrant"
+                vector_backend=db_choice
             )
 
             document_id = str(document["_id"])

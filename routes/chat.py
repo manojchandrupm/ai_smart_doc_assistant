@@ -39,14 +39,23 @@ async def chat(payload: ChatRequest, current_user: dict = Depends(get_current_us
         chat_history=[]
     )
 
-    sources = [
-        {
-            "filename": m["filename"],
-            "page": m["page"],
-            "chunk_index": m["chunk_index"]
-        }
-        for m in matches
-    ]
+    from routes.query_router import is_general_question
+    is_error = "⚠️" in answer or "Error" in answer
+    is_fallback = "I don't know based on the provided document" in answer
+    is_tagged_general = "[GENERAL]" in answer
+
+    if is_tagged_general:
+        answer = answer.replace("[GENERAL]", "").strip()
+
+    if is_general_question(payload.message) or is_error or is_fallback or is_tagged_general:
+        sources = []
+    else:
+        unique_filenames = []
+        for m in matches:
+            if m["filename"] not in unique_filenames:
+                unique_filenames.append(m["filename"])
+        
+        sources = [{"filename": fn} for fn in unique_filenames]
 
     save_chat_message(user_id, session_id, "assistant", answer, sources)
 

@@ -16,7 +16,10 @@ def store_chunks_in_mongodb(chunks):
     for chunk in chunks:
         docs.append({
             "chunk_id": chunk["chunk_id"],
-            "filename": chunk["filename"],
+            "user_id": chunk["user_id"],
+            "document_id": chunk["document_id"],
+            "filename": chunk.get("original_filename", chunk.get("filename", "")),
+            "stored_filename": chunk.get("stored_filename", ""),
             "page": chunk["page"],
             "chunk_index": chunk["chunk_index"],
             "text": chunk["text"],

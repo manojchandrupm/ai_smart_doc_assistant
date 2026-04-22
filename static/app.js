@@ -313,8 +313,12 @@ function addMessage(content, sender = "bot", sources = []) {
     // Append sources if they exist
     if (sources && sources.length > 0) {
         let sourceHtml = "<ul style='margin-top: 10px; font-size: 0.85em; opacity: 0.8;'>";
-        sources.forEach(s => {
-            sourceHtml += `<li>File: ${s.filename} (Page ${s.page})</li>`;
+
+        // Extract unique filenames
+        const uniqueFilenames = [...new Set(sources.map(s => s.filename))];
+
+        uniqueFilenames.forEach(filename => {
+            sourceHtml += `<li>Source File: ${filename}</li>`;
         });
         sourceHtml += "</ul>";
         messageContent.innerHTML += sourceHtml;

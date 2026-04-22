@@ -49,4 +49,3 @@ def retrieve_similar_chunks(question, user_id, top_k = 3) -> List[Dict]:
         })
 
     return matches
-
