@@ -37,3 +37,7 @@ def list_session_messages(user_id: str, session_id: str):
         "user_id": user_id,
         "session_id": session_id
     }).sort("created_at", 1))
+
+def delete_chat_session(user_id: str, session_id: str):
+    chat_sessions_collection.delete_one({"_id": ObjectId(session_id), "user_id": user_id})
+    chat_messages_collection.delete_many({"session_id": session_id, "user_id": user_id})

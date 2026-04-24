@@ -21,9 +21,7 @@ function logout() {
     if (chatBox) {
         chatBox.innerHTML = `
             <div class="message bot-message">
-                <div class="message-content">
-                    Hi! Upload a PDF on the Documents tab and ask me questions about it.
-                </div>
+                <div class="message-content">Hi! Upload a PDF on the Documents tab and ask me questions about it.</div>
             </div>`;
     }
 
@@ -61,6 +59,7 @@ async function checkAuth() {
         const response = await fetch("/auth/me", { headers: getAuthHeaders() });
         if (response.ok) {
             showPage("chat"); // Logged in!
+            loadThreads();
         } else if (response.status === 401) {
             // Token is expired or invalid — clear it and go to login
             localStorage.removeItem("token");
@@ -128,6 +127,7 @@ async function handleAuth(event) {
             document.getElementById("authEmail").value = "";
             document.getElementById("authPassword").value = "";
             showPage("chat");
+            loadThreads();
         }
     } catch (err) {
         errorEl.textContent = err.detail || "Authentication Failed";
@@ -174,12 +174,10 @@ function showPage(page) {
 
     if (page === "chat") {
         document.getElementById("chatPage").style.display = "flex";
-        document.getElementById("navChat").classList.add("active");
         document.getElementById("navDocs").classList.remove("active");
     } else if (page === "documents") {
         document.getElementById("documentsPage").style.display = "flex";
         document.getElementById("navDocs").classList.add("active");
-        document.getElementById("navChat").classList.remove("active");
         loadDocuments();
     }
 }
@@ -370,7 +368,12 @@ async function sendQuestion() {
         const data = await response.json();
 
         // Save session_id so AI remembers context
+        const wasNewSession = !currentSessionId;
         currentSessionId = data.session_id;
+
+        if (wasNewSession) {
+            loadThreads();
+        }
 
         // Replace loading text with the actual answer and sources
         loadingBubble.parentNode.remove(); // Remove loading bubble
@@ -378,5 +381,120 @@ async function sendQuestion() {
 
     } catch (error) {
         loadingBubble.textContent = "Error communicating with server.";
+    }
+}
+
+// =============================================
+// Chat History / Threads Logic
+// =============================================
+async function loadThreads() {
+    const listContainer = document.getElementById("threadList");
+    if (!listContainer) return;
+
+    try {
+        const response = await fetch("/chat/sessions", { headers: getAuthHeaders() });
+        if (!response.ok) return;
+
+        const sessions = await response.json();
+        listContainer.innerHTML = "";
+
+        if (sessions.length === 0) {
+            listContainer.innerHTML = "<p style='font-size: 12px; color: #6b7280; padding: 10px;'>No previous chats.</p>";
+            return;
+        }
+
+        sessions.forEach(session => {
+            const wrapper = document.createElement("div");
+            wrapper.className = "thread-wrapper";
+
+            const btn = document.createElement("button");
+            btn.className = "thread-btn" + (session.session_id === currentSessionId ? " active-thread" : "");
+            btn.textContent = session.title || "New Chat";
+            btn.onclick = () => loadThreadMessages(session.session_id);
+
+            const deleteBtn = document.createElement("button");
+            deleteBtn.className = "delete-thread-btn";
+            deleteBtn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"></path><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>`;
+            deleteBtn.onclick = (e) => {
+                e.stopPropagation();
+                deleteThread(session.session_id, session.title || "New Chat");
+            };
+
+            wrapper.appendChild(btn);
+            wrapper.appendChild(deleteBtn);
+            listContainer.appendChild(wrapper);
+        });
+    } catch (e) {
+        console.error("Error loading threads:", e);
+    }
+}
+
+async function loadThreadMessages(sessionId) {
+    currentSessionId = sessionId;
+    showPage("chat");
+    loadThreads(); // Update active state styling
+
+    const chatBox = document.getElementById("chatBox");
+    chatBox.innerHTML = "<div style='text-align:center; color:#6b7280; padding: 20px;'>Loading...</div>";
+
+    try {
+        const response = await fetch(`/chat/sessions/${sessionId}/messages`, { headers: getAuthHeaders() });
+        if (!response.ok) throw new Error("Failed to load messages");
+
+        const messages = await response.json();
+        chatBox.innerHTML = "";
+
+        if (messages.length === 0) {
+            startNewChat();
+            return;
+        }
+
+        messages.forEach(msg => {
+            addMessage(msg.message, msg.role === "assistant" ? "bot" : "user", msg.sources);
+        });
+    } catch (e) {
+        console.error("Error loading messages:", e);
+        chatBox.innerHTML = "<div style='color:red; padding: 20px;'>Error loading messages.</div>";
+    }
+}
+
+function startNewChat() {
+    currentSessionId = null;
+    loadThreads(); // Update active state styling
+    showPage("chat");
+
+    const chatBox = document.getElementById("chatBox");
+    if (chatBox) {
+        chatBox.innerHTML = `
+            <div class="message bot-message">
+                <div class="message-content">Hi! Upload a PDF on the Documents tab and ask me questions about it.</div>
+            </div>`;
+    }
+}
+
+async function deleteThread(sessionId, title) {
+    const confirmed = confirm(`Are you sure you want to delete the chat "${title}"?`);
+    if (!confirmed) return;
+
+    try {
+        const response = await fetch(`/chat/sessions/${sessionId}`, {
+            method: "DELETE",
+            headers: getAuthHeaders()
+        });
+
+        if (response.status === 401) { showPage("auth"); return; }
+        if (!response.ok) {
+            alert("Failed to delete the chat session.");
+            return;
+        }
+
+        if (currentSessionId === sessionId) {
+            startNewChat();
+        } else {
+            loadThreads();
+        }
+    } catch (e) {
+        console.error("Error deleting thread:", e);
+        alert("Something went wrong while deleting.");
     }
 }

@@ -6,7 +6,8 @@ from services.chat_service import (
     get_user_session,
     save_chat_message,
     list_user_sessions,
-    list_session_messages
+    list_session_messages,
+    delete_chat_session
 )
 from services.retrieval_service import retrieve_similar_chunks
 from services.user_query_response_service import generate_query_response
@@ -26,6 +27,9 @@ async def chat(payload: ChatRequest, current_user: dict = Depends(get_current_us
         session = create_chat_session(user_id=user_id, title=payload.message[:30])
         session_id = str(session["_id"])
 
+    past_messages = list_session_messages(user_id, session_id) if payload.session_id else []
+    chat_history = [{"role": msg["role"], "content": msg["message"]} for msg in past_messages][-10:] # get last 10 messages for context
+
     save_chat_message(user_id, session_id, "user", payload.message)
 
     matches = retrieve_similar_chunks(
@@ -36,7 +40,7 @@ async def chat(payload: ChatRequest, current_user: dict = Depends(get_current_us
 
     answer = await generate_query_response(
         content={"question": payload.message, "matches": matches},
-        chat_history=[]
+        chat_history=chat_history
     )
 
     from routes.query_router import is_general_question
@@ -86,3 +90,9 @@ def get_session_messages(session_id: str, current_user: dict = Depends(get_curre
         }
         for msg in messages
     ]
+
+@router.delete("/sessions/{session_id}")
+def delete_session(session_id: str, current_user: dict = Depends(get_current_user)):
+    user_id = str(current_user["_id"])
+    delete_chat_session(user_id, session_id)
+    return {"message": "Session deleted successfully"}
