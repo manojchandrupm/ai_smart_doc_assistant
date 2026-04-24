@@ -483,8 +483,8 @@ button:disabled {
 .thread-btn {
     flex: 1;
     text-align: left;
-    background: rgba(255, 255, 255, 0.05);
-    color: #e2e8f0;
+    background: transparent;
+    color: #cbd5e1;
     border: none;
     border-radius: 6px;
     padding: 8px 10px;
@@ -497,7 +497,7 @@ button:disabled {
 }
 
 .thread-btn:hover {
-    background: rgba(255, 255, 255, 0.1);
+    background: #1f2937;
     color: white;
 }
 
