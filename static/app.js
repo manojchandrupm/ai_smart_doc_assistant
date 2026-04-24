@@ -3,6 +3,8 @@
 // =============================================
 let currentSessionId = null;
 let isRegisterMode = false;
+let chatSocket = null;
+let currentBotBubble = null;
 
 function getToken() {
     return localStorage.getItem("token");
@@ -15,6 +17,10 @@ function setToken(token) {
 function logout() {
     localStorage.removeItem("token");
     currentSessionId = null;
+    if (chatSocket) {
+        chatSocket.close();
+        chatSocket = null;
+    }
 
     // Clear out the Chat Box so the next user doesn't see old messages
     const chatBox = document.getElementById("chatBox");
@@ -305,21 +311,15 @@ function addMessage(content, sender = "bot", sources = []) {
     const messageContent = document.createElement("div");
     messageContent.className = "message-content";
 
-    // Add text answer
-    messageContent.innerHTML = `<div>${escapeHtml(content)}</div>`;
+    const textDiv = document.createElement("div");
+    textDiv.className = "msg-text";
+    textDiv.textContent = content;
+    messageContent.appendChild(textDiv);
 
     // Append sources if they exist
     if (sources && sources.length > 0) {
-        let sourceHtml = "<ul style='margin-top: 10px; font-size: 0.85em; opacity: 0.8;'>";
-
-        // Extract unique filenames
-        const uniqueFilenames = [...new Set(sources.map(s => s.filename))];
-
-        uniqueFilenames.forEach(filename => {
-            sourceHtml += `<li>Source File: ${filename}</li>`;
-        });
-        sourceHtml += "</ul>";
-        messageContent.innerHTML += sourceHtml;
+        const sourcesList = buildSourcesList(sources);
+        messageContent.appendChild(sourcesList);
     }
 
     messageDiv.appendChild(messageContent);
@@ -328,8 +328,108 @@ function addMessage(content, sender = "bot", sources = []) {
     return messageContent;
 }
 
+function buildSourcesList(sources) {
+    const ul = document.createElement("ul");
+    ul.style.cssText = "margin-top: 10px; font-size: 0.85em; opacity: 0.8;";
+    const uniqueFilenames = [...new Set(sources.map(s => s.filename))];
+    uniqueFilenames.forEach(filename => {
+        const li = document.createElement("li");
+        li.textContent = `Source File: ${filename}`;
+        ul.appendChild(li);
+    });
+    return ul;
+}
+
 // =============================================
-// Send a question (Updated to hit POST /chat/ JSON)
+// WEBSOCKET LOGIC
+// =============================================
+let streamingText = ""; // accumulates raw streaming text
+
+function connectWebSocket() {
+    const token = getToken();
+    if (!token) return;
+
+    if (chatSocket && (chatSocket.readyState === WebSocket.OPEN || chatSocket.readyState === WebSocket.CONNECTING)) {
+        return;
+    }
+
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const wsUrl = `${protocol}//${window.location.host}/chat/ws?token=${token}`;
+    
+    chatSocket = new WebSocket(wsUrl);
+
+    chatSocket.onopen = () => {
+        console.log("WebSocket connected!");
+    };
+
+    chatSocket.onmessage = (event) => {
+        const data = JSON.parse(event.data);
+
+        if (data.error) {
+            console.error("WS Error:", data.error);
+            if (currentBotBubble) {
+                currentBotBubble.querySelector('.msg-text').textContent = "Error: " + data.error;
+            }
+            sendBtn.disabled = false;
+            questionInput.disabled = false;
+            currentBotBubble = null;
+            return;
+        }
+
+        if (data.type === "session_meta") {
+            const wasNewSession = !currentSessionId;
+            currentSessionId = data.session_id;
+            if (wasNewSession) loadThreads();
+
+        } else if (data.type === "token") {
+            if (currentBotBubble) {
+                let chunk = data.content;
+                chunk = chunk.replace(/\[GENERAL\]/g, "");
+                streamingText += chunk;
+
+                const textDiv = currentBotBubble.querySelector('.msg-text');
+                textDiv.classList.add('streaming');
+                // Schedule DOM paint on next animation frame for smooth rendering
+                requestAnimationFrame(() => {
+                    textDiv.textContent = streamingText;
+                    chatBox.scrollTop = chatBox.scrollHeight;
+                });
+            }
+
+        } else if (data.type === "end") {
+            if (currentBotBubble) {
+                const textDiv = currentBotBubble.querySelector('.msg-text');
+                textDiv.classList.remove('streaming');
+                let finalText = data.full_answer || streamingText;
+                finalText = finalText.replace(/\[GENERAL\]/g, "").trim();
+                textDiv.textContent = finalText;
+
+                if (data.sources && data.sources.length > 0) {
+                    currentBotBubble.appendChild(buildSourcesList(data.sources));
+                }
+                chatBox.scrollTop = chatBox.scrollHeight;
+            }
+            // Reset state
+            streamingText = "";
+            currentBotBubble = null;
+            sendBtn.disabled = false;
+            questionInput.disabled = false;
+            questionInput.focus();
+        }
+    };
+
+    chatSocket.onerror = (err) => {
+        console.error("WebSocket error:", err);
+    };
+
+    chatSocket.onclose = () => {
+        console.log("WebSocket disconnected.");
+        chatSocket = null;
+    };
+}
+
+// =============================================
+// Send a question (Updated for WebSockets)
 // =============================================
 sendBtn.addEventListener("click", sendQuestion);
 questionInput.addEventListener("keydown", function (e) {
@@ -343,44 +443,26 @@ async function sendQuestion() {
     addMessage(question, "user");
     questionInput.value = "";
 
-    const loadingBubble = addMessage("thinking...", "bot");
+    sendBtn.disabled = true;
+    questionInput.disabled = true;
 
-    try {
-        const payload = {
-            message: question,
-            top_k: 3,
-            session_id: currentSessionId
-        };
+    // Reset streaming accumulator and create fresh bot bubble
+    streamingText = "";
+    currentBotBubble = addMessage("thinking...", "bot");
 
-        const response = await fetch("/chat/", {
-            method: "POST",
-            headers: getAuthHeaders(),
-            body: JSON.stringify(payload)
-        });
+    const payload = {
+        message: question,
+        top_k: 3,
+        session_id: currentSessionId
+    };
 
-        if (response.status === 401) { showPage("auth"); return; }
-
-        if (!response.ok) {
-            loadingBubble.textContent = "Failed to get response.";
-            return;
-        }
-
-        const data = await response.json();
-
-        // Save session_id so AI remembers context
-        const wasNewSession = !currentSessionId;
-        currentSessionId = data.session_id;
-
-        if (wasNewSession) {
-            loadThreads();
-        }
-
-        // Replace loading text with the actual answer and sources
-        loadingBubble.parentNode.remove(); // Remove loading bubble
-        addMessage(data.answer, "bot", data.sources);
-
-    } catch (error) {
-        loadingBubble.textContent = "Error communicating with server.";
+    if (!chatSocket || chatSocket.readyState !== WebSocket.OPEN) {
+        connectWebSocket();
+        chatSocket.addEventListener('open', () => {
+            chatSocket.send(JSON.stringify(payload));
+        }, { once: true });
+    } else {
+        chatSocket.send(JSON.stringify(payload));
     }
 }
 
