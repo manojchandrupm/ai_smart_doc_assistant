@@ -477,6 +477,33 @@ button:disabled {
     font-size: 0.9rem;
 }
 
+.btn-google {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    width: 100%;
+    padding: 10px;
+    margin-top: 14px;
+    background: #ffffff;
+    color: #3c4043;
+    border: 1px solid #dadce0;
+    border-radius: 6px;
+    font-size: 1rem;
+    font-weight: 500;
+    cursor: pointer;
+    text-decoration: none;
+    transition: background 0.2s, box-shadow 0.2s;
+    box-sizing: border-box;
+}
+
+.btn-google:hover {
+    background: #f1f3f4;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
+    color: #3c4043;
+}
+
+
 /* ─── THREAD SECTION (CHAT HISTORY) ─── */
 .thread-section {
     display: flex;

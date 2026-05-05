@@ -43,3 +43,33 @@ def user_to_response(user: dict):
 
 def get_user_by_id(user_id: str):
     return users_collection.find_one({"_id": ObjectId(user_id)})
+
+
+def get_or_create_google_user(email: str, name: str, google_id: str) -> dict:
+    """
+    Find an existing user by email, or create one for Google OAuth users.
+    Google users won't have a password_hash — they authenticate via Google.
+    """
+    user = get_user_by_email(email)
+    if user:
+        # If user registered normally before, just link google_id
+        if not user.get("google_id"):
+            users_collection.update_one(
+                {"_id": user["_id"]},
+                {"$set": {"google_id": google_id}}
+            )
+        return user
+
+    # Create a new Google-only user (no password)
+    user_doc = {
+        "email": email,
+        "name": name,
+        "google_id": google_id,
+        "password_hash": None,       # No password for OAuth users
+        "created_at": datetime.now(timezone.utc),
+        "is_active": True,
+        "auth_provider": "google"
+    }
+    result = users_collection.insert_one(user_doc)
+    user_doc["_id"] = result.inserted_id
+    return user_doc

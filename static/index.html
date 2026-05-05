@@ -6,7 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>AI Smart Document Assistant</title>
     <meta name="description" content="Upload PDFs and chat with them using AI-powered semantic search." />
-    <link rel="stylesheet" href="/static/style.css?v=7" />
+    <link rel="stylesheet" href="/static/style.css?v=9" />
 </head>
 
 <body>
@@ -63,6 +63,10 @@
                         style="display: none;" />
 
                     <button type="submit" id="authSubmitBtn">Login</button>
+                    <a href="/auth/google/login" class="btn-google" style="margin-top: 12px;">
+                        <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" width="20" />
+                        Sign in with Google
+                    </a>
                 </form>
 
                 <p id="authError" style="color: red; display: none; margin-top: 10px;"></p>
@@ -71,6 +75,7 @@
                 <p style="margin-top: 15px;">
                     <a href="#" id="authToggleBtn" onclick="toggleAuthMode()">Need an account? Register here.</a>
                 </p>
+
             </div>
         </main>
 
@@ -89,7 +94,8 @@
 
             <footer class="chat-input-area">
                 <div class="chat-input-wrapper">
-                    <textarea id="questionInput" placeholder="Ask something about your uploaded documents..." rows="1"></textarea>
+                    <textarea id="questionInput" placeholder="Ask something about your uploaded documents..."
+                        rows="1"></textarea>
                     <button id="sendBtn">Send</button>
                 </div>
             </footer>

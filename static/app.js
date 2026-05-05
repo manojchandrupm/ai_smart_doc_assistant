@@ -144,6 +144,9 @@ async function handleAuth(event) {
 // =============================================
 // STARTUP CHECK
 // =============================================
+// ✅ Must run BEFORE checkAuth() so the Google OAuth token is stored
+// in localStorage before checkAuth() reads it.
+checkGoogleOAuthToken();
 checkAuth();
 
 // =============================================
@@ -355,7 +358,7 @@ function connectWebSocket() {
 
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     const wsUrl = `${protocol}//${window.location.host}/chat/ws?token=${token}`;
-    
+
     chatSocket = new WebSocket(wsUrl);
 
     chatSocket.onopen = () => {
@@ -578,5 +581,22 @@ async function deleteThread(sessionId, title) {
     } catch (e) {
         console.error("Error deleting thread:", e);
         alert("Something went wrong while deleting.");
+    }
+}
+
+// =============================================
+// Google Login Flow
+// =============================================
+
+// After Google OAuth redirect, the URL will be: /?token=<jwt>
+function checkGoogleOAuthToken() {
+    const params = new URLSearchParams(window.location.search);
+    const token = params.get("token");
+    if (token) {
+        // ✅ Use the same key "token" that getToken()/setToken()/logout() all use
+        setToken(token);
+        // Clean the URL (remove ?token=... from address bar)
+        window.history.replaceState({}, document.title, "/");
+        console.log("Google login successful!");
     }
 }
