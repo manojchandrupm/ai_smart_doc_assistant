@@ -1,4 +1,5 @@
 import os
+import asyncio
 from typing import List
 from fastapi import APIRouter, UploadFile, File, HTTPException, Form, Query,Depends
 from config import env
@@ -51,6 +52,14 @@ async def upload_pdfs(
 
         try:
             content = await file.read()
+            
+            # ─────────────────────────────────────────────────────────
+            # File size limit (20MB) to prevent OOM / quota exhaustion
+            # ─────────────────────────────────────────────────────────
+            MAX_FILE_SIZE_MB = 20
+            if len(content) > MAX_FILE_SIZE_MB * 1024 * 1024:
+                errors.append(FileUploadError(filename=filename, error=f"File exceeds {MAX_FILE_SIZE_MB}MB limit."))
+                continue
 
             with open(file_path, "wb") as f:
                 f.write(content)
@@ -64,7 +73,7 @@ async def upload_pdfs(
 
             document_id = str(document["_id"])
 
-            pages = extract_text_from_pdf(file_path)
+            pages = await asyncio.to_thread(extract_text_from_pdf, file_path)
 
             if not pages:
                 errors.append(FileUploadError(filename=filename, error="No extractable text found in PDF."))
@@ -79,10 +88,10 @@ async def upload_pdfs(
 
             enriched_chunks = []
             for chunk in chunks:
-                embedding = generate_embedding(chunk["text"])
+                # ✅ Run blocking Gemini API call in a thread — does not freeze the server
+                embedding = await asyncio.to_thread(generate_embedding, chunk["text"])
 
                 chunk["embedding"] = embedding
-
                 chunk["user_id"] = user_id
                 chunk["document_id"] = document_id
                 chunk["stored_filename"] = safe_filename
@@ -92,9 +101,10 @@ async def upload_pdfs(
                 enriched_chunks.append(chunk)
 
             if db_choice == "mongodb":
-                store_chunks_in_mongodb(enriched_chunks)
+                # ✅ Run blocking MongoDB/Qdrant write in a thread
+                await asyncio.to_thread(store_chunks_in_mongodb, enriched_chunks)
             else:
-                store_chunks_in_qdrant(enriched_chunks)
+                await asyncio.to_thread(store_chunks_in_qdrant, enriched_chunks)
 
             uploaded.append(
                 FileUploadResult(

@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, Depends, status
+from fastapi import APIRouter, HTTPException, Depends, status, Request
 from fastapi.security import OAuth2PasswordRequestForm
 from models.auth_models import RegisterRequest, TokenResponse, UserResponse, LoginRequest
 from services.auth_service import (
@@ -16,7 +16,7 @@ from services.google_oauth_service import (
     get_google_user_info
 )
 from services.auth_service import get_or_create_google_user
-
+from core.rate_limiter import limiter
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
 
@@ -33,8 +33,8 @@ def register_user(payload: RegisterRequest):
     return user_to_response(user)
 
 @router.post("/login", response_model=TokenResponse)
-def login_json(payload: LoginRequest):
-
+@limiter.limit("5/minute")
+def login_json(request: Request, payload: LoginRequest):
     user = authenticate_user(payload.email, payload.password)
     if not user:
         raise HTTPException(status_code=401, detail="Invalid email or password")
@@ -43,7 +43,8 @@ def login_json(payload: LoginRequest):
     return {"access_token": token, "token_type": "bearer"}
 
 @router.post("/login-form", response_model=TokenResponse)
-def login_form(form_data: OAuth2PasswordRequestForm = Depends()):
+@limiter.limit("5/minute")
+def login_form(request: Request, form_data: OAuth2PasswordRequestForm = Depends()):
     user = authenticate_user(form_data.username, form_data.password)
     if not user:
         raise HTTPException(status_code=401, detail="Invalid email or password")

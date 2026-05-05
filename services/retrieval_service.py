@@ -1,14 +1,9 @@
 from typing import List, Dict
-from qdrant_client import QdrantClient
 from qdrant_client.models import Filter, FieldCondition, MatchValue
 from config import env
 from services.embedding_service import generate_embedding
-
-
-qdrant_client = QdrantClient(
-    url=env.QDRANT_URL,
-    api_key=env.QDRANT_API_KEY,
-)
+# ✅ Use the single shared Qdrant client — no second connection pool
+from services.Qdrant_service import qdrant_client
 
 def retrieve_similar_chunks(question, user_id, top_k = 3) -> List[Dict]:
     """

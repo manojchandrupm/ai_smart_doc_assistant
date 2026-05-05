@@ -348,87 +348,106 @@ function buildSourcesList(sources) {
 // =============================================
 let streamingText = ""; // accumulates raw streaming text
 
+/**
+ * Opens a new WebSocket connection WITHOUT a token in the URL.
+ * Auth is done by sending the first message as a JSON handshake.
+ * Returns a Promise that resolves once the socket is open & authenticated.
+ */
 function connectWebSocket() {
     const token = getToken();
-    if (!token) return;
+    if (!token) return Promise.reject("No token");
 
-    if (chatSocket && (chatSocket.readyState === WebSocket.OPEN || chatSocket.readyState === WebSocket.CONNECTING)) {
-        return;
+    // If already open, resolve immediately
+    if (chatSocket && chatSocket.readyState === WebSocket.OPEN) {
+        return Promise.resolve(chatSocket);
     }
 
-    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const wsUrl = `${protocol}//${window.location.host}/chat/ws?token=${token}`;
+    // If already connecting, wait for it
+    if (chatSocket && chatSocket.readyState === WebSocket.CONNECTING) {
+        return new Promise((resolve, reject) => {
+            chatSocket.addEventListener('open', () => resolve(chatSocket), { once: true });
+            chatSocket.addEventListener('error', reject, { once: true });
+        });
+    }
 
+    // Create a fresh connection — token is NOT in the URL
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const wsUrl = `${protocol}//${window.location.host}/chat/ws`;
     chatSocket = new WebSocket(wsUrl);
 
-    chatSocket.onopen = () => {
-        console.log("WebSocket connected!");
-    };
+    return new Promise((resolve, reject) => {
+        chatSocket.onopen = () => {
+            // ✅ Send auth handshake as the FIRST message
+            chatSocket.send(JSON.stringify({ type: "auth", token: token }));
+            console.log("WebSocket connected and auth handshake sent.");
+            resolve(chatSocket);
+        };
 
-    chatSocket.onmessage = (event) => {
-        const data = JSON.parse(event.data);
+        chatSocket.onmessage = (event) => {
+            const data = JSON.parse(event.data);
 
-        if (data.error) {
-            console.error("WS Error:", data.error);
-            if (currentBotBubble) {
-                currentBotBubble.querySelector('.msg-text').textContent = "Error: " + data.error;
-            }
-            sendBtn.disabled = false;
-            questionInput.disabled = false;
-            currentBotBubble = null;
-            return;
-        }
-
-        if (data.type === "session_meta") {
-            const wasNewSession = !currentSessionId;
-            currentSessionId = data.session_id;
-            if (wasNewSession) loadThreads();
-
-        } else if (data.type === "token") {
-            if (currentBotBubble) {
-                let chunk = data.content;
-                chunk = chunk.replace(/\[GENERAL\]/g, "");
-                streamingText += chunk;
-
-                const textDiv = currentBotBubble.querySelector('.msg-text');
-                textDiv.classList.add('streaming');
-                // Schedule DOM paint on next animation frame for smooth rendering
-                requestAnimationFrame(() => {
-                    textDiv.textContent = streamingText;
-                    chatBox.scrollTop = chatBox.scrollHeight;
-                });
-            }
-
-        } else if (data.type === "end") {
-            if (currentBotBubble) {
-                const textDiv = currentBotBubble.querySelector('.msg-text');
-                textDiv.classList.remove('streaming');
-                let finalText = data.full_answer || streamingText;
-                finalText = finalText.replace(/\[GENERAL\]/g, "").trim();
-                textDiv.textContent = finalText;
-
-                if (data.sources && data.sources.length > 0) {
-                    currentBotBubble.appendChild(buildSourcesList(data.sources));
+            if (data.error) {
+                console.error("WS Error:", data.error);
+                if (currentBotBubble) {
+                    currentBotBubble.querySelector('.msg-text').textContent = "Error: " + data.error;
                 }
-                chatBox.scrollTop = chatBox.scrollHeight;
+                sendBtn.disabled = false;
+                questionInput.disabled = false;
+                currentBotBubble = null;
+                return;
             }
-            // Reset state
-            streamingText = "";
-            currentBotBubble = null;
-            sendBtn.disabled = false;
-            questionInput.disabled = false;
-            questionInput.focus();
-        }
-    };
 
-    chatSocket.onerror = (err) => {
-        console.error("WebSocket error:", err);
-    };
+            if (data.type === "session_meta") {
+                const wasNewSession = !currentSessionId;
+                currentSessionId = data.session_id;
+                if (wasNewSession) loadThreads();
 
-    chatSocket.onclose = () => {
-        console.log("WebSocket disconnected.");
-        chatSocket = null;
-    };
+            } else if (data.type === "token") {
+                if (currentBotBubble) {
+                    let chunk = data.content;
+                    chunk = chunk.replace(/\[GENERAL\]/g, "");
+                    streamingText += chunk;
+
+                    const textDiv = currentBotBubble.querySelector('.msg-text');
+                    textDiv.classList.add('streaming');
+                    requestAnimationFrame(() => {
+                        textDiv.textContent = streamingText;
+                        chatBox.scrollTop = chatBox.scrollHeight;
+                    });
+                }
+
+            } else if (data.type === "end") {
+                if (currentBotBubble) {
+                    const textDiv = currentBotBubble.querySelector('.msg-text');
+                    textDiv.classList.remove('streaming');
+                    let finalText = data.full_answer || streamingText;
+                    finalText = finalText.replace(/\[GENERAL\]/g, "").trim();
+                    textDiv.textContent = finalText;
+
+                    if (data.sources && data.sources.length > 0) {
+                        currentBotBubble.appendChild(buildSourcesList(data.sources));
+                    }
+                    chatBox.scrollTop = chatBox.scrollHeight;
+                }
+                // Reset state
+                streamingText = "";
+                currentBotBubble = null;
+                sendBtn.disabled = false;
+                questionInput.disabled = false;
+                questionInput.focus();
+            }
+        };
+
+        chatSocket.onerror = (err) => {
+            console.error("WebSocket error:", err);
+            reject(err);
+        };
+
+        chatSocket.onclose = () => {
+            console.log("WebSocket disconnected.");
+            chatSocket = null;
+        };
+    });
 }
 
 // =============================================
@@ -459,13 +478,17 @@ async function sendQuestion() {
         session_id: currentSessionId
     };
 
-    if (!chatSocket || chatSocket.readyState !== WebSocket.OPEN) {
-        connectWebSocket();
-        chatSocket.addEventListener('open', () => {
-            chatSocket.send(JSON.stringify(payload));
-        }, { once: true });
-    } else {
+    try {
+        // ✅ Always await the connection — connectWebSocket() now returns a Promise
+        await connectWebSocket();
         chatSocket.send(JSON.stringify(payload));
+    } catch (err) {
+        console.error("Failed to connect WebSocket:", err);
+        if (currentBotBubble) {
+            currentBotBubble.querySelector('.msg-text').textContent = "Connection error. Please refresh and try again.";
+        }
+        sendBtn.disabled = false;
+        questionInput.disabled = false;
     }
 }
 

@@ -52,17 +52,21 @@ def _friendly_error_message(e: Exception) -> str:
         return UNAVAILABLE_ERROR_MESSAGE
     return f"Error generating answer: {str(e)}"
 
-async def generate_query_response(content, chat_history):
 
-    context = "\n\n".join([match["text"] for match in content['matches']])
-
+# ─────────────────────────────────────────────────────────
+# Shared prompt builder — single source of truth
+# Previously this 60-line block was copy-pasted into both
+# generate_query_response() and stream_query_response().
+# ─────────────────────────────────────────────────────────
+def _build_prompt(content: dict, chat_history: list) -> str:
+    """Build the AI prompt from retrieved document context and chat history."""
+    context = "\n\n".join([match["text"] for match in content["matches"]])
     history_text = ""
     if chat_history:
         history_text = "\n".join(
             [f"{msg['role'].capitalize()}: {msg['content']}" for msg in chat_history]
         )
-
-    prompt = f"""
+    return f"""
 You are a smart AI assistant.
 
 You can handle two types of queries:
@@ -108,7 +112,6 @@ Formatting rules:
 Previous conversation:
 {history_text}
 
-
 Current User Question:
 {content['question']}
 
@@ -120,8 +123,11 @@ Retrieved document context:
 ---
 
 Answer:
-            """
+"""
 
+async def generate_query_response(content, chat_history):
+    # ✅ Uses shared _build_prompt() — no duplication
+    prompt = _build_prompt(content, chat_history)
     answer = None
     for attempt in range(1, MAX_RETRIES + 1):
         try:
@@ -139,7 +145,6 @@ Answer:
                 print(f"[QueryResponse] {error_type} — retrying in {wait}s (attempt {attempt}/{MAX_RETRIES})...")
                 await asyncio.sleep(wait)
                 continue
-            # Retries exhausted or non-retryable error
             answer = _friendly_error_message(e)
             break
 
@@ -154,73 +159,8 @@ Answer:
 
 
 async def stream_query_response(content, chat_history):
-    context = "\n\n".join([match["text"] for match in content["matches"]])
-
-    history_text = ""
-    if chat_history:
-        history_text = "\n".join(
-            [f"{msg['role'].capitalize()}: {msg['content']}" for msg in chat_history]
-        )
-
-    prompt = f"""
-You are a smart AI assistant.
-
-You can handle two types of queries:
-1. General conversation (greetings, casual talk)
-2. Document-based questions
-
----
-
-Rules:
-
-🔹 If the user asks a GENERAL question (like "hi", "what is your name", "what can you do", "yo"):
-- You MUST start your response exactly with the tag: [GENERAL]
-- Respond naturally like a friendly assistant.
-- Keep it short.
-- Mention that you are a bot designed to answer questions from uploaded documents.
-
----
-
-If the user asks a DOCUMENT-RELATED question:
-- Answer ONLY using the provided context.
-- Do NOT use any external knowledge.
-- Do NOT guess or assume anything.
-- If the answer is not present in the context, reply exactly:
-  "I don't know based on the provided document."
-
----
-
-Instructions for document answers:
-- Present the answer in a clean and structured format.
-- Use bullet points when listing multiple items.
-- Keep sentences short and easy to understand.
-- Combine information only if clearly available in the context.
-- Do NOT include explanations like "based on the context".
-- Do NOT add extra commentary.
-
-Formatting rules:
-- Start with a short 1-line summary (if applicable).
-- Then present details as bullet points.
-
----
-
-Previous conversation:
-{history_text}
-
----
-
-Current User Question:
-{content['question']}
-
----
-
-Retrieved document context:
-{context}
-
----
-
-Answer:
-"""
+    # ✅ Uses shared _build_prompt() — no duplication
+    prompt = _build_prompt(content, chat_history)
     for attempt in range(1, MAX_RETRIES + 1):
         try:
             stream = await client.aio.models.generate_content_stream(
@@ -241,7 +181,6 @@ Answer:
                 print(f"[StreamResponse] {error_type} — retrying in {wait}s (attempt {attempt}/{MAX_RETRIES})...")
                 await asyncio.sleep(wait)
                 continue
-            # Retries exhausted or non-retryable error
             yield f"\n{_friendly_error_message(e)}"
             return
 

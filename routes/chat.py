@@ -4,6 +4,7 @@ import asyncio
 from models.chat_models import ChatRequest
 from core.dependencies import get_current_user
 from core.security import decode_access_token
+from core.utils import is_general_question  # ✅ from shared util, not query_router
 from services.auth_service import get_user_by_id
 from services.chat_service import (
     create_chat_session,
@@ -19,21 +20,32 @@ from services.user_query_response_service import generate_query_response, stream
 router = APIRouter(prefix="/chat", tags=["Chat"])
 
 @router.websocket("/ws")
-async def websocket_chat(websocket: WebSocket, token: str):
+async def websocket_chat(websocket: WebSocket):
     await websocket.accept()
-    
+
+    # ─────────────────────────────────────────────────────────
+    # Step 1: Expect the FIRST message to be a JSON auth handshake
+    # This keeps the token out of the URL (no server logs / browser history)
+    # Expected format: { "type": "auth", "token": "<jwt>" }
+    # ─────────────────────────────────────────────────────────
     try:
-        payload = decode_access_token(token)
-        user_id = payload.get("sub")
+        raw = await websocket.receive_text()
+        auth_msg = json.loads(raw)
+        if auth_msg.get("type") != "auth" or not auth_msg.get("token"):
+            await websocket.close(code=1008, reason="First message must be auth handshake")
+            return
+        token = auth_msg["token"]
+        auth_payload = decode_access_token(token)
+        user_id = auth_payload.get("sub")
         if not user_id:
-            await websocket.close(code=1008)
+            await websocket.close(code=1008, reason="Invalid token: missing user id")
             return
         user = get_user_by_id(user_id)
         if not user:
-            await websocket.close(code=1008)
+            await websocket.close(code=1008, reason="User not found")
             return
     except Exception:
-        await websocket.close(code=1008)
+        await websocket.close(code=1008, reason="Authentication failed")
         return
 
     try:
@@ -69,7 +81,6 @@ async def websocket_chat(websocket: WebSocket, token: str):
                 await websocket.send_json({"type": "token", "content": chunk})
                 await asyncio.sleep(0.01)  # Small yield so browser can paint each chunk
             
-            from routes.query_router import is_general_question
             is_error = "⚠️" in full_answer or "Error" in full_answer
             is_fallback = "I don't know based on the provided document" in full_answer
             is_tagged_general = "[GENERAL]" in full_answer
@@ -125,7 +136,6 @@ async def chat(payload: ChatRequest, current_user: dict = Depends(get_current_us
         chat_history=chat_history
     )
 
-    from routes.query_router import is_general_question
     is_error = "⚠️" in answer or "Error" in answer
     is_fallback = "I don't know based on the provided document" in answer
     is_tagged_general = "[GENERAL]" in answer

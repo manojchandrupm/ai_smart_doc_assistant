@@ -7,22 +7,10 @@ from services.user_query_response_service import generate_query_response, stream
 from fastapi.responses import StreamingResponse
 import asyncio
 from core.dependencies import get_current_user
+# ✅ Imported from shared utility — no longer defined here
+from core.utils import is_general_question
 
 router = APIRouter(prefix="/query", tags=["Query"])
-
-
-# ─────────────────────────────────────────────────────────
-# Detect general/greeting questions
-# ─────────────────────────────────────────────────────────
-GENERAL_KEYWORDS = [
-    "hi", "hello", "hey", "how are you", "who are you",
-    "what are you", "good morning", "good evening", "good night",
-    "thanks", "thank you", "bye", "goodbye", "what can you do",
-    "what is your name"
-]
-def is_general_question(question: str) -> bool:
-    q = question.lower().strip()
-    return any(keyword in q for keyword in GENERAL_KEYWORDS)
 
 def get_matches(question: str, top_k: int, db_choice: str, user_id: str):
     """
