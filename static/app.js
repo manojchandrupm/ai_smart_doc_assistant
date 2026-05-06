@@ -172,14 +172,16 @@ function showPage(page) {
     document.getElementById("chatPage").style.display = "none";
     document.getElementById("documentsPage").style.display = "none";
 
-    // Hide sidebar on auth page
+    // Hide sidebar and resizer on auth page
     if (page === "auth") {
         document.getElementById("appSidebar").style.display = "none";
+        document.getElementById("sidebarResizer").style.display = "none";
         document.getElementById("authPage").style.display = "flex";
         return;
     }
 
     document.getElementById("appSidebar").style.display = "flex";
+    document.getElementById("sidebarResizer").style.display = "block";
 
     if (page === "chat") {
         document.getElementById("chatPage").style.display = "flex";
@@ -622,4 +624,42 @@ function checkGoogleOAuthToken() {
         window.history.replaceState({}, document.title, "/");
         console.log("Google login successful!");
     }
+}
+
+// =============================================
+// Sidebar Resizing Logic
+// =============================================
+const appSidebar = document.getElementById("appSidebar");
+const sidebarResizer = document.getElementById("sidebarResizer");
+let isResizing = false;
+
+if (sidebarResizer && appSidebar) {
+    sidebarResizer.addEventListener("mousedown", (e) => {
+        isResizing = true;
+        sidebarResizer.classList.add("is-resizing");
+        document.body.style.cursor = "col-resize";
+        e.preventDefault(); // prevent text selection while dragging
+    });
+
+    document.addEventListener("mousemove", (e) => {
+        if (!isResizing) return;
+        
+        // e.clientX is the mouse X coordinate from the left edge of the window
+        let newWidth = e.clientX;
+        
+        // Enforce boundaries
+        if (newWidth < 180) newWidth = 180;
+        const maxWidth = 400; // Hard limit so it doesn't get too long
+        if (newWidth > maxWidth) newWidth = maxWidth;
+        
+        appSidebar.style.width = newWidth + "px";
+    });
+
+    document.addEventListener("mouseup", () => {
+        if (isResizing) {
+            isResizing = false;
+            sidebarResizer.classList.remove("is-resizing");
+            document.body.style.cursor = "";
+        }
+    });
 }
