@@ -4,6 +4,7 @@ from services.document_service import get_user_document, delete_user_document, l
 from services.Qdrant_service import delete_document_from_qdrant
 from services.mongodb_service import delete_document_from_mongodb
 import os
+from services.cache_service import invalidate_user_cache
 
 router = APIRouter(prefix="/documents", tags=["Documents"])
 
@@ -45,5 +46,8 @@ def delete_document(document_id: str, current_user: dict = Depends(get_current_u
         os.remove(file_path)
 
     delete_user_document(document_id, user_id)
+    
+    # Invalidate cache for this user
+    invalidate_user_cache(user_id)
 
     return {"message": "Document deleted successfully"}

@@ -7,8 +7,8 @@ from services.user_query_response_service import generate_query_response, stream
 from fastapi.responses import StreamingResponse
 import asyncio
 from core.dependencies import get_current_user
-# ✅ Imported from shared utility — no longer defined here
 from core.utils import is_general_question
+from services.cache_service import get_cached_answer, set_cached_answer
 
 router = APIRouter(prefix="/query", tags=["Query"])
 
@@ -35,6 +35,10 @@ async def query_document(payload: QueryRequest, current_user: dict = Depends(get
         raise HTTPException(status_code=400, detail="Question cannot be empty")
 
     user_id = str(current_user["_id"])
+
+    cached = get_cached_answer(user_id, question)
+    if cached:
+        return QueryReply(answer=cached["answer"], sources=cached.get("sources", ""))
 
     try:
         matches = get_matches(question, payload.top_k, payload.db_choice, user_id)
@@ -77,6 +81,9 @@ async def query_document_stream(payload: QueryRequest, current_user: dict = Depe
 
     user_id = str(current_user["_id"])
 
+    cached = get_cached_answer(user_id, question)
+    if cached:
+        return QueryReply(answer=cached["answer"], sources=cached.get("sources", ""))
     try:
         matches = get_matches(question, payload.top_k, payload.db_choice, user_id)
 

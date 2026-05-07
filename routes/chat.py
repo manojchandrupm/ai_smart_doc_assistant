@@ -16,6 +16,7 @@ from services.chat_service import (
 )
 from services.retrieval_service import retrieve_similar_chunks
 from services.user_query_response_service import generate_query_response, stream_query_response
+from services.cache_service import get_cached_answer, set_cached_answer
 
 router = APIRouter(prefix="/chat", tags=["Chat"])
 
@@ -54,6 +55,7 @@ async def websocket_chat(websocket: WebSocket):
             payload = json.loads(data)
             
             message = payload.get("message")
+
             session_id = payload.get("session_id")
             top_k = payload.get("top_k", 3)
 
@@ -72,6 +74,23 @@ async def websocket_chat(websocket: WebSocket):
             chat_history = [{"role": msg["role"], "content": msg["message"]} for msg in past_messages][-10:]
 
             save_chat_message(user_id, session_id, "user", message)
+
+            # ─────────────────────────────────────────────────────────
+            # Step 2: Check cache BEFORE doing any work
+            # ─────────────────────────────────────────────────────────
+            cached = get_cached_answer(user_id, message)
+            if cached:
+                # Send only the `end` frame — avoids a requestAnimationFrame
+                # race where streamingText is reset to "" by `end` before the
+                # scheduled animation frame (triggered by `token`) can paint.
+                save_chat_message(user_id, session_id, "assistant", cached["answer"], cached["sources"])
+                await websocket.send_json({
+                    "type": "end",
+                    "full_answer": cached["answer"],
+                    "sources": cached["sources"],
+                    "from_cache": True
+                })
+                continue
 
             matches = retrieve_similar_chunks(question=message, user_id=user_id, top_k=top_k)
 
@@ -99,11 +118,16 @@ async def websocket_chat(websocket: WebSocket):
 
             save_chat_message(user_id, session_id, "assistant", full_answer, sources)
 
+            #    Only cache real document answers, not errors or greetings
+            if not is_error and not is_fallback and not is_tagged_general:
+                set_cached_answer(user_id, message, full_answer, sources)
+
             await websocket.send_json({
                 "type": "end",
                 "sources": sources,
                 "full_answer": full_answer
             })
+
     except WebSocketDisconnect:
         print("WebSocket client disconnected")
 
