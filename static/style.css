@@ -1,10 +1,12 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+
 * {
     box-sizing: border-box;
 }
 
 body {
     margin: 0;
-    font-family: Arial, sans-serif;
+    font-family: 'Inter', Arial, sans-serif;
     background: #1f2937;
     color: #e5e7eb;
 }
@@ -35,19 +37,64 @@ body {
 
 /* ─── SIDEBAR ─── */
 .sidebar {
-    width: 220px;
-    /* Default width */
-    min-width: 180px;
-    /* Minimum width constraint */
+    width: 260px;
+    min-width: 200px;
     max-width: 400px;
-    /* Max width constraint so it doesn't go too long */
     flex-shrink: 0;
-    background: #111827;
+    background: #0d1117;
+    border-right: 1px solid rgba(255, 255, 255, 0.06);
     color: white;
-    padding: 24px 16px;
+    padding: 0;
     display: flex;
     flex-direction: column;
-    gap: 20px;
+    overflow: hidden;
+    position: relative;
+}
+
+/* ─── SIDEBAR HEADER / BRANDING ─── */
+.sidebar-brand {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 20px 16px 16px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+    flex-shrink: 0;
+}
+
+.sidebar-brand-icon {
+    width: 34px;
+    height: 34px;
+    border-radius: 10px;
+    background: linear-gradient(135deg, #3b82f6, #2e3db3);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    box-shadow: 0 0 12px rgba(59, 130, 246, 0.4);
+}
+
+.sidebar-brand-icon svg {
+    width: 18px;
+    height: 18px;
+    color: white;
+    stroke: white;
+}
+
+.sidebar-brand-text h2 {
+    margin: 0;
+    font-size: 15px;
+    font-weight: 700;
+    color: #f1f5f9;
+    letter-spacing: -0.01em;
+    line-height: 1.2;
+}
+
+.sidebar-brand-text p {
+    margin: 2px 0 0;
+    font-size: 11px;
+    color: #64748b;
+    font-weight: 400;
+    line-height: 1;
 }
 
 /* ─── SIDEBAR RESIZER ─── */
@@ -62,50 +109,108 @@ body {
 
 .sidebar-resizer:hover,
 .sidebar-resizer.is-resizing {
-    background: #4b5563;
-    /* Subtle gray line when dragging */
+    background: rgba(99, 102, 241, 0.5);
 }
 
+/* Keep legacy h2/subtitle for fallback */
 .sidebar h2 {
     margin: 0;
-    font-size: 22px;
+    font-size: 15px;
+    font-weight: 700;
 }
 
 .subtitle {
     margin: 0;
-    color: #cbd5e1;
-    font-size: 13px;
+    color: #64748b;
+    font-size: 11px;
 }
 
-/* ─── SIDEBAR NAV BUTTONS (Change 1) ─── */
+/* ─── NEW CHAT BUTTON ─── */
+.new-chat-main-btn {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: calc(100% - 24px);
+    margin: 12px auto 4px;
+    padding: 9px 14px;
+    background: rgba(59, 130, 246, 0.12);
+    border: 1px solid rgba(59, 130, 246, 0.3);
+    border-radius: 10px;
+    color: #93c5fd;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    font-family: 'Inter', sans-serif;
+    flex-shrink: 0;
+}
+
+.new-chat-main-btn:hover {
+    background: rgba(59, 130, 246, 0.22);
+    border-color: rgba(59, 130, 246, 0.5);
+    color: #bfdbfe;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(59, 130, 246, 0.2);
+}
+
+.new-chat-main-btn svg {
+    width: 15px;
+    height: 15px;
+    stroke: currentColor;
+    flex-shrink: 0;
+}
+
+/* ─── SIDEBAR SECTION LABEL ─── */
+.sidebar-section-label {
+    padding: 10px 16px 4px;
+    font-size: 10px;
+    font-weight: 600;
+    color: #475569;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    flex-shrink: 0;
+}
+
+/* ─── SIDEBAR NAV BUTTONS ─── */
 .sidebar-nav {
     display: flex;
     flex-direction: column;
-    gap: 10px;
-    margin-top: 8px;
+    gap: 2px;
+    padding: 0 8px;
 }
 
 .nav-btn {
     width: 100%;
     text-align: left;
-    background: #1f2937;
-    color: #e5e7eb;
+    background: transparent;
+    color: #94a3b8;
     border: none;
     border-radius: 8px;
-    padding: 10px 14px;
-    font-size: 14px;
+    padding: 9px 12px;
+    font-size: 13px;
+    font-weight: 500;
     cursor: pointer;
-    transition: background 0.2s;
+    transition: all 0.18s ease;
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    font-family: 'Inter', sans-serif;
+    letter-spacing: -0.01em;
 }
 
 .nav-btn:hover {
-    background: #374151;
+    background: rgba(255, 255, 255, 0.06);
+    color: #e2e8f0;
 }
 
-/* Active tab looks highlighted */
 .nav-btn.active {
-    background: #2563eb;
-    color: white;
+    background: rgba(99, 102, 241, 0.15);
+    color: #a5b4fc;
+    font-weight: 600;
+}
+
+.nav-btn.active:hover {
+    background: rgba(99, 102, 241, 0.22);
 }
 
 /* ─── MAIN PAGE CONTAINER ─── */
@@ -175,7 +280,7 @@ body {
 }
 
 .user-message .message-content {
-    background: linear-gradient(135deg, rgba(59, 130, 246, 0.85), rgba(37, 99, 235, 0.85));
+    background: linear-gradient(135deg, rgba(67, 128, 226, 0.89), rgba(18, 84, 226, 0.836));
     backdrop-filter: blur(8px);
     -webkit-backdrop-filter: blur(8px);
     border: 1px solid rgba(255, 255, 255, 0.15);
@@ -333,7 +438,7 @@ button {
     padding: 10px 14px;
     cursor: pointer;
     font-size: 14px;
-    background: #2563eb;
+    background: #2564ebe8;
     color: white;
     width: fit-content;
 }
@@ -522,6 +627,32 @@ button:disabled {
     }
 }
 
+@keyframes cardFloat {
+    0% {
+        transform: translateY(0px) rotate(0deg);
+    }
+
+    20% {
+        transform: translateY(-4px) rotate(-0.4deg);
+    }
+
+    40% {
+        transform: translateY(-2px) rotate(0.3deg);
+    }
+
+    60% {
+        transform: translateY(-5px) rotate(-0.3deg);
+    }
+
+    80% {
+        transform: translateY(-3px) rotate(0.4deg);
+    }
+
+    100% {
+        transform: translateY(0px) rotate(0deg);
+    }
+}
+
 .auth-card {
     background: rgba(31, 41, 55, 0.75);
     backdrop-filter: blur(16px);
@@ -535,6 +666,7 @@ button:disabled {
     border: 1px solid rgba(255, 255, 255, 0.05);
     position: relative;
     z-index: 1;
+    animation: cardFloat 6s ease-in-out infinite;
 }
 
 .auth-card h1 {
@@ -606,82 +738,132 @@ button:disabled {
 .thread-section {
     display: flex;
     flex-direction: column;
+    flex: 1;
+    min-height: 0;
+    overflow: hidden;
 }
 
 .thread-list {
     display: flex;
     flex-direction: column;
-    gap: 4px;
+    gap: 2px;
+    overflow-y: auto;
+    flex: 1;
+    padding: 0 8px 8px;
 }
 
 .thread-wrapper {
     display: flex;
     align-items: center;
-    gap: 4px;
+    gap: 2px;
+    border-radius: 8px;
+    transition: background 0.15s;
+    padding-right: 2px;
+}
+
+.thread-wrapper:hover {
+    background: rgba(255, 255, 255, 0.05);
+}
+
+.thread-wrapper:hover .delete-thread-btn {
+    opacity: 1;
 }
 
 .thread-btn {
     flex: 1;
     text-align: left;
     background: transparent;
-    color: #cbd5e1;
+    color: #94a3b8;
     border: none;
-    border-radius: 6px;
+    border-radius: 8px;
     padding: 8px 10px;
     font-size: 13px;
+    font-weight: 400;
     cursor: pointer;
-    transition: background 0.2s;
+    transition: color 0.15s;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+    font-family: 'Inter', sans-serif;
+    line-height: 1.4;
+    min-width: 0;
 }
 
 .thread-btn:hover {
-    background: #1f2937;
-    color: white;
+    color: #e2e8f0;
+    background: transparent;
 }
 
 .thread-btn.active-thread {
-    background: #374151;
-    color: white;
-    font-weight: 500;
+    color: #c7d2fe;
+    font-weight: 600;
 }
 
+.thread-wrapper:has(.active-thread) {
+    background: rgba(99, 102, 241, 0.12);
+    border: 1px solid rgba(99, 102, 241, 0.2);
+}
+
+.thread-wrapper:has(.active-thread):hover {
+    background: rgba(99, 102, 241, 0.18);
+}
+
+/* Keep legacy new-chat-btn for compatibility */
 .new-chat-btn {
-    background: transparent;
-    color: #e5e7eb;
-    border: 1px solid #4b5563;
-    border-radius: 4px;
-    padding: 4px 8px;
-    font-size: 11px;
-    cursor: pointer;
-    transition: all 0.2s;
-}
-
-.new-chat-btn:hover {
-    background: #374151;
-    color: white;
-    border-color: #6b7280;
+    display: none;
 }
 
 .delete-thread-btn {
     background: transparent;
-    color: #9ca3af;
+    color: #475569;
     border: none;
-    font-size: 14px;
-    padding: 6px;
+    padding: 5px 6px;
     cursor: pointer;
-    border-radius: 4px;
-    transition: background 0.2s, color 0.2s, opacity 0.2s;
+    border-radius: 6px;
+    transition: background 0.2s, color 0.2s;
     display: flex;
     align-items: center;
     justify-content: center;
-    opacity: 0.6;
+    opacity: 0;
     width: auto;
+    flex-shrink: 0;
 }
 
 .delete-thread-btn:hover {
-    background: #374151;
-    color: #ef4444;
+    background: rgba(239, 68, 68, 0.12);
+    color: #f87171;
     opacity: 1;
+}
+
+/* ─── SIDEBAR BOTTOM NAV ─── */
+.sidebar-bottom {
+    border-top: 1px solid rgba(255, 255, 255, 0.06);
+    padding: 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    flex-shrink: 0;
+}
+
+.nav-btn-danger {
+    width: 100%;
+    text-align: left;
+    background: transparent;
+    color: #64748b;
+    border: none;
+    border-radius: 8px;
+    padding: 9px 12px;
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.18s ease;
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    font-family: 'Inter', sans-serif;
+}
+
+.nav-btn-danger:hover {
+    background: rgba(239, 68, 68, 0.1);
+    color: #f87171;
 }
