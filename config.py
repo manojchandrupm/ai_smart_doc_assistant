@@ -28,5 +28,7 @@ class Settings:
     REDIS_PORT = int(os.getenv("REDIS_PORT"))
     REDIS_PASSWORD = os.getenv("REDIS_PASSWORD")
 
+    TAVILY_API_KEY = os.getenv("TAVILY_API_KEY")
+
 env = Settings()
 

@@ -54,6 +54,20 @@ def _friendly_error_message(e: Exception) -> str:
 
 
 # ─────────────────────────────────────────────────────────
+# Search Intent Router
+# ─────────────────────────────────────────────────────────
+async def needs_web_search(question: str) -> bool:
+    """Uses Gemini to decide if the question requires live internet search."""
+    try:
+        response = await client.aio.models.generate_content(
+            model="gemini-2.5-flash",
+            contents=f"Respond with exactly YES or NO. Does this question require searching the live internet for up-to-date information, weather, news, or general world knowledge not typically found in private corporate documents? Question: {question}"
+        )
+        return "YES" in response.text.upper()
+    except Exception:
+        return False
+
+# ─────────────────────────────────────────────────────────
 # Shared prompt builder — single source of truth
 # Previously this 60-line block was copy-pasted into both
 # generate_query_response() and stream_query_response().
@@ -71,7 +85,7 @@ You are a smart AI assistant.
 
 You can handle two types of queries:
 1. General conversation (greetings, casual talk)
-2. Document-based questions
+2. Document or Website-based questions
 
 ---
 
@@ -85,8 +99,8 @@ Rules:
 
 ---
 
-If the user asks a DOCUMENT-RELATED question:
-- Answer ONLY using the provided context.
+If the user asks a DOCUMENT-RELATED or WEBSITE-RELATED question:
+- Answer ONLY using the provided context (which contains document chunks and fetched website text).
 - Do NOT use any external knowledge.
 - Do NOT guess or assume anything.
 - If the answer is not present in the context, reply exactly:
@@ -117,7 +131,7 @@ Current User Question:
 
 ---
 
-Retrieved document context:
+Retrieved document and website context:
 {context}
 
 ---

@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, WebSocket, WebSocketDisconnect
 import json
 import asyncio
+import re
 from models.chat_models import ChatRequest
 from core.dependencies import get_current_user
 from core.security import decode_access_token
@@ -15,8 +16,9 @@ from services.chat_service import (
     delete_chat_session
 )
 from services.retrieval_service import retrieve_similar_chunks
-from services.user_query_response_service import generate_query_response, stream_query_response
+from services.user_query_response_service import generate_query_response, stream_query_response, needs_web_search
 from services.cache_service import get_cached_answer, set_cached_answer
+from mcp_client import async_fetch_url, async_tavily_search
 
 router = APIRouter(prefix="/chat", tags=["Chat"])
 
@@ -94,6 +96,37 @@ async def websocket_chat(websocket: WebSocket):
 
             matches = retrieve_similar_chunks(question=message, user_id=user_id, top_k=top_k)
 
+            # --- MCP WEB FETCHING (By URL) ---
+            urls = re.findall(r'(https?://[^\s]+)', message)
+            for url in urls:
+                try:
+                    matches.clear()
+                    web_content = await async_fetch_url(url)
+                    matches.append({
+                        "filename": url,
+                        "text": f"--- START OF WEBPAGE CONTENT ({url}) ---\n{web_content}\n--- END OF WEBPAGE CONTENT ---"
+                    })
+                except Exception as e:
+                    matches.append({
+                        "filename": url,
+                        "text": f"The user asked you to summarize {url}, but the system failed to fetch it. Tell the user: 'I could not fetch the website because of an error.'"
+                    })
+            # ------------------------
+
+            # --- MCP TAVILY SEARCH (By AI Intent) ---
+            if await needs_web_search(message):
+                try:
+                    print(f"--> AI decided to use Tavily for: {message}")
+                    matches.clear() # Clear document chunks so it focuses entirely on the web
+                    search_results = await async_tavily_search(message)
+                    matches.append({
+                        "filename": "Tavily Internet Search",
+                        "text": f"--- TAVILY WEB SEARCH RESULTS ---\n{search_results}\n---------------------------------"
+                    })
+                except Exception as e:
+                    print(f"Tavily fetch error: {e}")
+            # ------------------------
+
             full_answer = ""
             async for chunk in stream_query_response(content={"question": message, "matches": matches}, chat_history=chat_history):
                 full_answer += chunk
@@ -154,6 +187,37 @@ async def chat(payload: ChatRequest, current_user: dict = Depends(get_current_us
         user_id=user_id,
         top_k=payload.top_k
     )
+
+    # --- MCP WEB FETCHING (By URL) ---
+    urls = re.findall(r'(https?://[^\s]+)', payload.message)
+    for url in urls:
+        try:
+            matches.clear()
+            web_content = await async_fetch_url(url)
+            matches.append({
+                "filename": url,
+                "text": f"--- START OF WEBPAGE CONTENT ({url}) ---\n{web_content}\n--- END OF WEBPAGE CONTENT ---"
+            })
+        except Exception as e:
+            matches.append({
+                "filename": url,
+                "text": f"The user asked you to summarize {url}, but the system failed to fetch it. Tell the user: 'I could not fetch the website because of an error.'"
+            })
+    # ------------------------
+
+    # --- MCP TAVILY SEARCH (By AI Intent) ---
+    if await needs_web_search(payload.message):
+        try:
+            print(f"--> AI decided to use Tavily for: {payload.message}")
+            matches.clear() # Clear document chunks
+            search_results = await async_tavily_search(payload.message)
+            matches.append({
+                "filename": "Tavily Internet Search",
+                "text": f"--- TAVILY WEB SEARCH RESULTS ---\n{search_results}\n---------------------------------"
+            })
+        except Exception as e:
+            print(f"Tavily fetch error: {e}")
+    # ------------------------
 
     answer = await generate_query_response(
         content={"question": payload.message, "matches": matches},
