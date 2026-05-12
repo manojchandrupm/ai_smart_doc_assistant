@@ -82,10 +82,15 @@ async def websocket_chat(websocket: WebSocket):
             # ─────────────────────────────────────────────────────────
             cached = get_cached_answer(user_id, message)
             if cached:
-                # Send only the `end` frame — avoids a requestAnimationFrame
-                # race where streamingText is reset to "" by `end` before the
-                # scheduled animation frame (triggered by `token`) can paint.
                 save_chat_message(user_id, session_id, "assistant", cached["answer"], cached["sources"])
+                
+                # Simulate a smooth typing stream for cached answers
+                words = cached["answer"].split(" ")
+                for i in range(0, len(words), 2):
+                    chunk = " ".join(words[i:i+2]) + " "
+                    await websocket.send_json({"type": "token", "content": chunk})
+                    await asyncio.sleep(0.05)
+
                 await websocket.send_json({
                     "type": "end",
                     "full_answer": cached["answer"],
@@ -97,20 +102,24 @@ async def websocket_chat(websocket: WebSocket):
             matches = retrieve_similar_chunks(question=message, user_id=user_id, top_k=top_k)
 
             # --- MCP WEB FETCHING (By URL) ---
-            urls = re.findall(r'(https?://[^\s]+)', message)
-            for url in urls:
-                try:
-                    matches.clear()
-                    web_content = await async_fetch_url(url)
-                    matches.append({
-                        "filename": url,
-                        "text": f"--- START OF WEBPAGE CONTENT ({url}) ---\n{web_content}\n--- END OF WEBPAGE CONTENT ---"
-                    })
-                except Exception as e:
-                    matches.append({
-                        "filename": url,
-                        "text": f"The user asked you to summarize {url}, but the system failed to fetch it. Tell the user: 'I could not fetch the website because of an error.'"
-                    })
+            url_pattern = r'(https?://[^\s<>"]+|www\.[^\s<>"]+|[a-zA-Z0-9.-]+\.(?:com|org|net|edu|gov|io|co|in|ai)\b(?:/[^\s<>"]*)?)'
+            urls = re.findall(url_pattern, message)
+            if urls:
+                matches.clear()
+                for raw_url in urls:
+                    raw_url = raw_url.rstrip('.,;!?)("\'')
+                    fetch_url = raw_url if raw_url.startswith('http') else 'https://' + raw_url
+                    try:
+                        web_content = await async_fetch_url(fetch_url)
+                        matches.append({
+                            "filename": raw_url,
+                            "text": f"--- START OF WEBPAGE CONTENT ({raw_url}) ---\n{web_content}\n--- END OF WEBPAGE CONTENT ---"
+                        })
+                    except Exception as e:
+                        matches.append({
+                            "filename": raw_url,
+                            "text": f"The user asked you to summarize {raw_url}, but the system failed to fetch it. Tell the user: 'I could not fetch the website because of an error.'"
+                        })
             # ------------------------
 
             # --- MCP TAVILY SEARCH (By AI Intent) ---
@@ -130,8 +139,13 @@ async def websocket_chat(websocket: WebSocket):
             full_answer = ""
             async for chunk in stream_query_response(content={"question": message, "matches": matches}, chat_history=chat_history):
                 full_answer += chunk
-                await websocket.send_json({"type": "token", "content": chunk})
-                await asyncio.sleep(0.01)  # Small yield so browser can paint each chunk
+                
+                # Break large chunks from Gemini into smaller pieces to force smooth UI streaming
+                chunk_size = 5
+                for i in range(0, len(chunk), chunk_size):
+                    piece = chunk[i:i+chunk_size]
+                    await websocket.send_json({"type": "token", "content": piece})
+                    await asyncio.sleep(0.02)
             
             is_error = "⚠️" in full_answer or "Error" in full_answer
             is_fallback = "I don't know based on the provided document" in full_answer
@@ -189,20 +203,24 @@ async def chat(payload: ChatRequest, current_user: dict = Depends(get_current_us
     )
 
     # --- MCP WEB FETCHING (By URL) ---
-    urls = re.findall(r'(https?://[^\s]+)', payload.message)
-    for url in urls:
-        try:
-            matches.clear()
-            web_content = await async_fetch_url(url)
-            matches.append({
-                "filename": url,
-                "text": f"--- START OF WEBPAGE CONTENT ({url}) ---\n{web_content}\n--- END OF WEBPAGE CONTENT ---"
-            })
-        except Exception as e:
-            matches.append({
-                "filename": url,
-                "text": f"The user asked you to summarize {url}, but the system failed to fetch it. Tell the user: 'I could not fetch the website because of an error.'"
-            })
+    url_pattern = r'(https?://[^\s<>"]+|www\.[^\s<>"]+|[a-zA-Z0-9.-]+\.(?:com|org|net|edu|gov|io|co|in|ai)\b(?:/[^\s<>"]*)?)'
+    urls = re.findall(url_pattern, payload.message)
+    if urls:
+        matches.clear()
+        for raw_url in urls:
+            raw_url = raw_url.rstrip('.,;!?)("\'')
+            fetch_url = raw_url if raw_url.startswith('http') else 'https://' + raw_url
+            try:
+                web_content = await async_fetch_url(fetch_url)
+                matches.append({
+                    "filename": raw_url,
+                    "text": f"--- START OF WEBPAGE CONTENT ({raw_url}) ---\n{web_content}\n--- END OF WEBPAGE CONTENT ---"
+                })
+            except Exception as e:
+                matches.append({
+                    "filename": raw_url,
+                    "text": f"The user asked you to summarize {raw_url}, but the system failed to fetch it. Tell the user: 'I could not fetch the website because of an error.'"
+                })
     # ------------------------
 
     # --- MCP TAVILY SEARCH (By AI Intent) ---

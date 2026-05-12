@@ -61,7 +61,6 @@ async def async_tavily_search(query: str) -> str:
             except Exception as e:
                 return f"Error searching Tavily: {str(e)}"
 
-# A normal synchronous wrapper function so we can easily pass it to Gemini later
 def fetch_web_page(url: str) -> str:
     """
     Reads the text content of any website URL.
