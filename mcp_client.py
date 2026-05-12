@@ -1,6 +1,9 @@
 import asyncio
 import os
+import sys
 from config import env
+
+NPX_CMD = "npx.cmd" if sys.platform == "win32" else "npx"
 
 # pyrefly: ignore [missing-import]
 from mcp import ClientSession, StdioServerParameters
@@ -15,7 +18,7 @@ async def async_fetch_url(url: str) -> str:
     # 1. Define the external server we want to connect to.
     # We are using 'npx' to automatically download and run the server-fetch tool.
     server_params = StdioServerParameters(
-        command="npx.cmd",
+        command=NPX_CMD,
         args=["-y", "mcp-fetch-server"]
     )
     
@@ -46,7 +49,7 @@ async def async_tavily_search(query: str) -> str:
         return "Error: TAVILY_API_KEY is missing from your .env file."
 
     server_params = StdioServerParameters(
-        command="npx.cmd",
+        command=NPX_CMD,
         args=["-y", "@toolsdk.ai/tavily-mcp"],
         env={"TAVILY_API_KEY": tavily_key, **os.environ}
     )
