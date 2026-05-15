@@ -477,7 +477,8 @@ async function sendQuestion() {
     const payload = {
         message: question,
         top_k: 3,
-        session_id: currentSessionId
+        session_id: currentSessionId,
+        db_choice: getUploadDb()
     };
 
     try {
@@ -643,15 +644,15 @@ if (sidebarResizer && appSidebar) {
 
     document.addEventListener("mousemove", (e) => {
         if (!isResizing) return;
-        
+
         // e.clientX is the mouse X coordinate from the left edge of the window
         let newWidth = e.clientX;
-        
+
         // Enforce boundaries
         if (newWidth < 180) newWidth = 180;
         const maxWidth = 400; // Hard limit so it doesn't get too long
         if (newWidth > maxWidth) newWidth = maxWidth;
-        
+
         appSidebar.style.width = newWidth + "px";
     });
 

@@ -1,9 +1,20 @@
+import sys
+import asyncio
+
+# ─────────────────────────────────────────────────────────
+# Fix: Playwright on Windows requires ProactorEventLoop to
+# spawn subprocesses. Uvicorn defaults to SelectorEventLoop
+# on Windows which raises NotImplementedError.
+# ─────────────────────────────────────────────────────────
+if sys.platform == "win32":
+    asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
+
 from fastapi import FastAPI, Request
 from contextlib import asynccontextmanager
 from config import env
 from models.schemas import HealthResponse
 from routes.upload_router import router as upload_router
-from routes.query_router import router as query_router
+# from routes.query_router import router as query_router
 from routes.auth_router import router as auth_router
 from routes.chat import router as chat_router
 from routes.documents import router as documents_router
@@ -76,10 +87,11 @@ app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
 app.include_router(upload_router)
-app.include_router(query_router)
+# app.include_router(query_router)
 app.include_router(auth_router)
 app.include_router(chat_router)
 app.include_router(documents_router)
+# app.include_router(agent_router)  
 
 @app.get("/")
 async def serve_home():

@@ -4,9 +4,23 @@ from mcp.server.fastmcp import FastMCP
 from routes.query_router import get_matches
 from services.document_service import list_user_documents
 from services.chat_service import list_session_messages
+from services.retrieval_service import retrieve_similar_chunks
+from services.mongodb_service import retrieve_similar_chunks_from_mongodb
+from services.embedding_service import generate_embedding
 
 # 1. Initialize the FastMCP server
-mcp = FastMCP("SmartDocAssistant")
+mcp = FastMCP("SmartDocAssistant") 
+
+def get_matches(question: str, top_k: int, db_choice: str, user_id: str):
+    """
+    Route retrieval to Qdrant or MongoDB based on db_choice.
+    Both return the same list-of-dicts shape.
+    """
+    if db_choice == "mongodb":
+        query_embedding = generate_embedding(question)
+        return retrieve_similar_chunks_from_mongodb(query_embedding, user_id, top_k)
+    else:
+        return retrieve_similar_chunks(question=question, top_k=top_k, user_id=user_id)
 
 # 2. Define a tool using the @mcp.tool() decorator
 # Everything in the docstring and type hints becomes instructions for the AI client!

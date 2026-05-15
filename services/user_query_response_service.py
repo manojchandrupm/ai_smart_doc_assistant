@@ -53,19 +53,6 @@ def _friendly_error_message(e: Exception) -> str:
     return f"Error generating answer: {str(e)}"
 
 
-# ─────────────────────────────────────────────────────────
-# Search Intent Router
-# ─────────────────────────────────────────────────────────
-async def needs_web_search(question: str) -> bool:
-    """Uses Gemini to decide if the question requires live internet search."""
-    try:
-        response = await client.aio.models.generate_content(
-            model="gemini-2.5-flash",
-            contents=f"Respond with exactly YES or NO. Does this question require searching the live internet for up-to-date information, weather, news, or general world knowledge not typically found in private corporate documents? Question: {question}"
-        )
-        return "YES" in response.text.upper()
-    except Exception:
-        return False
 
 # ─────────────────────────────────────────────────────────
 # Shared prompt builder — single source of truth
@@ -90,7 +77,6 @@ You can handle two types of queries:
 ---
 
 Rules:
-
 🔹 If the user asks a GENERAL question (like "hi", "what is your name", "what can you do", "yo"):
 - You MUST start your response exactly with the tag: [GENERAL]
 - Respond naturally like a friendly assistant.

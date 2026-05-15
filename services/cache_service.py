@@ -1,6 +1,9 @@
 import json
 import hashlib
+import logging
 from core.redis_client import get_redis
+
+logger = logging.getLogger(__name__)
 
 CACHE_TTL = 3600
 
@@ -18,35 +21,47 @@ def _make_cache_key(user_id: str, question: str) -> str:
 def get_cached_answer(user_id: str, question: str) -> dict | None:
     """
     Returns the cached payload dict  { "answer": str, "sources": list }
-    or None if there is no cache hit.
+    or None if there is no cache hit OR if Redis is unavailable.
     """
-    r = get_redis()
-    key = _make_cache_key(user_id, question)
-    raw = r.get(key)
-    if raw is None:
+    try:
+        r = get_redis()
+        key = _make_cache_key(user_id, question)
+        raw = r.get(key)
+        if raw is None:
+            return None
+        return json.loads(raw)
+    except Exception as e:
+        logger.warning(f"[Cache] Redis unavailable, skipping cache read: {e}")
         return None
-    return json.loads(raw)
 
 
 def set_cached_answer(user_id: str, question: str, answer: str, sources: list) -> None:
     """
     Stores the answer + sources in Redis with a TTL.
     Only cache successful, non-error answers.
+    Silently skips if Redis is unavailable.
     """
-    r = get_redis()
-    key = _make_cache_key(user_id, question)
-    payload = json.dumps({"answer": answer, "sources": sources})
-    r.setex(key, CACHE_TTL, payload)
+    try:
+        r = get_redis()
+        key = _make_cache_key(user_id, question)
+        payload = json.dumps({"answer": answer, "sources": sources})
+        r.setex(key, CACHE_TTL, payload)
+    except Exception as e:
+        logger.warning(f"[Cache] Redis unavailable, skipping cache write: {e}")
 
 
 def invalidate_user_cache(user_id: str) -> int:
     """
     Delete ALL cached answers for a given user (e.g. when they delete a document).
-    Returns the number of keys deleted.
+    Returns the number of keys deleted, or 0 if Redis is unavailable.
     """
-    r = get_redis()
-    pattern = f"qa_cache:{user_id}:*"
-    keys = r.keys(pattern)
-    if keys:
-        return r.delete(*keys)
-    return 0
+    try:
+        r = get_redis()
+        pattern = f"qa_cache:{user_id}:*"
+        keys = r.keys(pattern)
+        if keys:
+            return r.delete(*keys)
+        return 0
+    except Exception as e:
+        logger.warning(f"[Cache] Redis unavailable, skipping cache invalidation: {e}")
+        return 0
