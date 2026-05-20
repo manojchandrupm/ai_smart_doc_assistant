@@ -14,7 +14,7 @@ from services.chat_service import (
     list_user_sessions,
     list_session_messages,
     delete_chat_session
-)
+) 
 from services.retrieval_service import retrieve_similar_chunks
 from services.user_query_response_service import generate_query_response
 from mcp_client import async_fetch_url
@@ -22,6 +22,9 @@ from services.web_search_agent import run_web_search_agent
 from services.router_service import route_query
 from routes.browser_agent import run_browser_agent
 from services.rag_agent import run_rag_agent
+from agent.flight_search_agent import run_flight_search_agent
+from agent.ecommerce_research_agent import run_ecommerce_research_agent
+from agent.hotel_comparison_agent import run_hotel_comparison_agent
 
 router = APIRouter(prefix="/chat", tags=["Chat"])
 
@@ -100,29 +103,23 @@ async def websocket_chat(websocket: WebSocket):
             # ─────────────────────────────────────────────────────────
             # Step 2: AI Router — decide which agent handles this query
             # ─────────────────────────────────────────────────────────
-            route = await route_query(message)
+            route = await route_query(message, chat_history=chat_history)
             print(f"[AI Router] Query routed to: {route}")
 
             # ══════════════════════════════════════════════════════════
-            # BRANCH A: Browser Automation Agent
+            # Agent Selection 
             # ══════════════════════════════════════════════════════════
-            if route == "browser_agent":
-                save_fn = lambda ans, src: save_chat_message(user_id, session_id, "assistant", ans, src)
-                await run_browser_agent(message, websocket, save_fn)
-                continue  # skip the RAG flow below
+            save_fn = lambda ans, src: save_chat_message(user_id, session_id, "assistant", ans, src)
 
-            # ══════════════════════════════════════════════════════════
-            # BRANCH B: Web Search Agent
-            # ══════════════════════════════════════════════════════════
-            if route == "web_search_agent":
-                save_fn = lambda ans, src: save_chat_message(user_id, session_id, "assistant", ans, src)
+            if route == "browser_agent":
+                await run_browser_agent(message, websocket, save_fn, chat_history=chat_history)
+                continue  
+
+            elif route == "web_search_agent":
                 await run_web_search_agent(message, websocket, save_fn)
-                continue  # skip the RAG flow below
+                continue  
             
-            # ══════════════════════════════════════════════════════════
-            # BRANCH C: RAG Agent
-            # ══════════════════════════════════════════════════════════
-            if route == "rag_agent":
+            elif route == "rag_agent":
                 await run_rag_agent(
                     message=message,
                     websocket=websocket,
@@ -132,6 +129,18 @@ async def websocket_chat(websocket: WebSocket):
                     top_k=top_k,
                     db_choice=db_choice
                 )
+            elif route == "flight_search_agent":
+                await run_flight_search_agent(message, websocket, save_fn, chat_history)
+                continue 
+
+            elif route == "ecommerce_research_agent":
+                await run_ecommerce_research_agent(message, websocket, save_fn, chat_history)   
+                continue
+
+            elif route == "hotel_comparison_agent":
+                await run_hotel_comparison_agent(message, websocket, save_fn, chat_history)
+                continue
+
 
     except WebSocketDisconnect:
         print("WebSocket client disconnected")

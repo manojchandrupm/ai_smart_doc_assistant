@@ -45,18 +45,31 @@ class QueryRequest(BaseModel):
     query: str
 
 SYSTEM_PROMPT = """
-    You are a Browser Automation Agent controlling a real web browser.
-    Break down the user's task into logical steps.
-    Use 'navigate' to go to a URL.
-    Use 'get_page_text' to read what's on the screen.
-    Use 'click_element' and 'fill_input' using CSS selectors to interact.
-    Use 'press_key' for things like 'Enter'.
-    Always read the page text to figure out the context.
-    CRITICAL INSTRUCTION: When the task is complete, YOUR FINAL RESPONSE MUST CONTAIN THE ACTUAL DATA OR TEXT you extracted. If the user asked you to find a movie, search for it, read the page text, and INCLUDE the movie details (like rating, plot, cast) in your final answer. NEVER just say "I searched for it" or "I found it". You MUST paste the relevant extracted information directly into your final reply.
+You are a safe Browser Booking Agent.
+
+Your job:
+1. Understand the user's booking request.
+2. If source, destination, date, passenger count, or required details are missing, ask the user directly.
+3. If details are available, open the booking website.
+4. Use get_page_text and get_interactive_elements before clicking or filling.
+5. Fill only normal booking details like source, destination, date, name, age, gender, mobile, and email if provided by the user.
+6. Never bypass CAPTCHA, OTP, login security, or payment authentication.
+7. Never complete payment.
+8. Stop when you reach the review/payment page (if applicable).
+9. Return a summary of what you found or accomplished (e.g., ticket details, prices, or search results).
+10. ONLY IF the user is booking something or buying a product, append this exact message: "Please click the Source URL below to complete your payment/booking." (Do not mention payment for general information searches like Wikipedia).
+11. DO NOT manually print the raw current page URL in your text response, as the chat interface will automatically attach it to the bottom of your message.
+
+Important:
+- Do not guess selectors blindly.
+- First inspect the page using get_interactive_elements.
+- Use click_element, fill_input, and press_key step by step.
+- If CAPTCHA, OTP, login, or payment appears, stop and ask the user to complete it manually.
+- If a tool returns an error for the same website, do not repeat the same action more than once. Try an alternative URL or explain the issue to the user.
 """
+ 
 
-
-async def run_browser_agent(message: str, websocket: WebSocket, save_fn) -> str:
+async def run_browser_agent(message: str, websocket: WebSocket, save_fn, chat_history: list = None) -> str:
     browser_agent = BrowserAgent()
     await browser_agent.start()
 
@@ -67,6 +80,8 @@ async def run_browser_agent(message: str, websocket: WebSocket, save_fn) -> str:
             types.FunctionDeclaration(name="click_element", description="Clicks a CSS selector element",     parameters=types.Schema(type="OBJECT", properties={"selector": types.Schema(type="STRING")}, required=["selector"])),
             types.FunctionDeclaration(name="fill_input",    description="Fills an input field",              parameters=types.Schema(type="OBJECT", properties={"selector": types.Schema(type="STRING"), "value": types.Schema(type="STRING")}, required=["selector", "value"])),
             types.FunctionDeclaration(name="press_key",     description="Presses a keyboard key",            parameters=types.Schema(type="OBJECT", properties={"key": types.Schema(type="STRING")}, required=["key"])),
+            types.FunctionDeclaration(name="get_interactive_elements",description="Returns visible clickable and fillable elements with suggested selectors",parameters=types.Schema(type="OBJECT", properties={})),
+            types.FunctionDeclaration(name="get_current_url",description="Returns the current browser page URL",parameters=types.Schema(type="OBJECT", properties={})),
         ])
 
         config = types.GenerateContentConfig(
@@ -74,7 +89,12 @@ async def run_browser_agent(message: str, websocket: WebSocket, save_fn) -> str:
             system_instruction=SYSTEM_PROMPT
         )
 
-        contents = [types.Content(role="user", parts=[types.Part(text=message)])]
+        contents = []
+        if chat_history:
+            for msg in chat_history:
+                role = "model" if msg["role"] == "assistant" else "user"
+                contents.append(types.Content(role=role, parts=[types.Part(text=msg["content"])]))
+        contents.append(types.Content(role="user", parts=[types.Part(text=message)]))
         response = await client.aio.models.generate_content(
             model="gemini-2.5-flash",
             contents=contents,
@@ -114,6 +134,10 @@ async def run_browser_agent(message: str, websocket: WebSocket, save_fn) -> str:
                         tool_result = await browser_agent.fill_input(args.get("selector"), args.get("value"))
                     elif fn.name == "press_key":
                         tool_result = await browser_agent.press_key(args.get("key"))
+                    elif fn.name == "get_interactive_elements":
+                        tool_result = await browser_agent.get_interactive_elements()
+                    elif fn.name == "get_current_url":
+                        tool_result = await browser_agent.get_current_url()
                 except Exception as tool_err:
                     tool_result = f"Tool error: {str(tool_err)}"
                     print(f"[BrowserAgent] Tool error in {fn.name}: {tool_err}")
@@ -141,6 +165,12 @@ async def run_browser_agent(message: str, websocket: WebSocket, save_fn) -> str:
         if not full_answer:
             full_answer = _extract_text(response) or "Agent completed the task but produced no summary."
 
+        # Fetch the true final URL after all clicks and navigations are done
+        try:
+            source_link = await browser_agent.get_current_url()
+        except Exception:
+            pass
+
         # Stream the full answer token by token for a typing effect
         chunk_size = 5
         for i in range(0, len(full_answer), chunk_size):
@@ -149,9 +179,18 @@ async def run_browser_agent(message: str, websocket: WebSocket, save_fn) -> str:
             await asyncio.sleep(0.02)
  
         # Save clean final answer to DB
-        save_fn(full_answer, [{"filename": source_link}])
+        current_url = await browser_agent.get_current_url()
 
-        await websocket.send_json({"type": "end", "sources": [{"filename": source_link}], "full_answer": full_answer})
+        if current_url and current_url != "about:blank":
+            sources = [{"filename": current_url}]
+        elif source_link and source_link != "about:blank":
+            sources = [{"filename": source_link}]
+        else:
+            sources = []
+
+        save_fn(full_answer, sources)
+
+        await websocket.send_json({"type": "end", "sources": sources, "full_answer": full_answer})
         return full_answer
 
     except Exception as e:

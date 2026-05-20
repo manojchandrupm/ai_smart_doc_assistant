@@ -143,3 +143,37 @@ class BrowserAgent:
             return f"Pressed key: {key}"
         except Exception as e:
             return f"Error pressing key: {str(e)}"
+        
+    async def get_interactive_elements(self) -> str:
+        return await self._loop.run_in_executor(self._executor, self._sync_get_interactive_elements)
+
+    def _sync_get_interactive_elements(self) -> str:
+        try:
+            elements = self.page.locator("input, button, select, textarea, a").evaluate_all("""
+            els => els.slice(0, 80).map((el, i) => ({
+            index: i,
+            tag: el.tagName,
+            text: el.innerText || el.value || el.placeholder || el.getAttribute('aria-label') || '',
+            type: el.getAttribute('type'),
+            name: el.getAttribute('name'),
+            id: el.id,
+            placeholder: el.getAttribute('placeholder'),
+            selector:
+                el.id ? '#' + el.id :
+                el.name ? el.tagName.toLowerCase() + '[name="' + el.name + '"]' :
+                el.placeholder ? el.tagName.toLowerCase() + '[placeholder="' + el.placeholder + '"]' :
+                null
+        }))
+        """)
+            return str(elements)
+        except Exception as e:
+            return f"Error getting interactive elements: {str(e)}"
+    
+    async def get_current_url(self) -> str:
+        return await self._loop.run_in_executor(self._executor, self._sync_get_current_url)
+
+    def _sync_get_current_url(self) -> str:
+        try:
+            return self.page.url
+        except Exception as e:
+            return f"Error getting URL: {str(e)}"

@@ -339,7 +339,11 @@ function buildSourcesList(sources) {
     const uniqueFilenames = [...new Set(sources.map(s => s.filename))];
     uniqueFilenames.forEach(filename => {
         const li = document.createElement("li");
-        li.textContent = `Source File: ${filename}`;
+        if (filename.startsWith("http")) {
+            li.innerHTML = `Source URL: <a href="${escapeHtml(filename)}" target="_blank" style="color: #60a5fa; text-decoration: underline;">${escapeHtml(filename)}</a>`;
+        } else {
+            li.textContent = `Source File: ${filename}`;
+        }
         ul.appendChild(li);
     });
     return ul;
@@ -412,8 +416,9 @@ function connectWebSocket() {
 
                     const textDiv = currentBotBubble.querySelector('.msg-text');
                     textDiv.classList.add('streaming');
+                    const textToSet = streamingText;
                     requestAnimationFrame(() => {
-                        textDiv.textContent = streamingText;
+                        textDiv.textContent = textToSet;
                         chatBox.scrollTop = chatBox.scrollHeight;
                     });
                 }

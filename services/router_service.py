@@ -10,6 +10,21 @@ client = genai.Client(api_key=os.environ.get("GEMINI_API_KEY"))
 def rule_based_route(user_query: str) -> str | None:
     query = user_query.lower()
 
+    flight_keywords = [
+        "flight", "airline", "airport", "chennai to bangalore flight",
+        "cheap flight", "cheapest flight", "flight ticket"
+    ]
+
+    ecommerce_keywords = [
+        "amazon", "flipkart", "product", "buy", "price compare",
+        "compare specs", "headphones", "laptop", "mobile", "rating", "add to cart"
+    ]
+
+    hotel_keywords = [
+        "hotel", "room", "stay", "resort", "booking.com",
+        "family-friendly", "parking", "breakfast", "oyo", "agoda"
+    ]
+
     browser_keywords = [
         "book", "fill form", "login", "sign in", "compare price",
         "add to cart", "buy", "checkout", "open website",
@@ -20,7 +35,7 @@ def rule_based_route(user_query: str) -> str | None:
         "latest", "current", "today", "yesterday", "news",
         "live", "real-time", "weather", "stock price",
         "search web", "internet", "recent", "now",
-        "who is the current", "2025", "2026"
+        "who is the current"
     ]
 
     document_keywords = [
@@ -28,6 +43,15 @@ def rule_based_route(user_query: str) -> str | None:
         "from this file", "from the pdf", "summarize this document",
         "based on the document", "page", "chunk"
     ]
+
+    if any(word in query for word in flight_keywords):
+        return "flight_search_agent"
+
+    if any(word in query for word in ecommerce_keywords):
+        return "ecommerce_research_agent"
+
+    if any(word in query for word in hotel_keywords):
+        return "hotel_comparison_agent"
 
     if any(word in query for word in browser_keywords):
         return "browser_agent"
@@ -78,10 +102,15 @@ def rule_based_route(user_query: str) -> str | None:
 #         logger.warning(f"[Router] Gemini routing failed ({e}), falling back to rag_agent")
 #         return "rag_agent"
 
-async def route_query(user_query: str) -> str:
+async def route_query(user_query: str, chat_history: list = None) -> str:
     """
     Returns: browser_agent, rag_agent, or web_search_agent
     """
+    
+    # If the user is just answering a follow-up question, we should check history
+    history_text = ""
+    if chat_history:
+        history_text = "\n".join([f"{msg['role'].capitalize()}: {msg['content']}" for msg in chat_history[-3:]])
 
     # 1. First use rule-based routing
     rule_decision = rule_based_route(user_query)
@@ -123,11 +152,24 @@ Use when the user wants actions on websites:
 - comparing products on websites
 - interacting with UI
 
+4. flight_search_agent
+Use when the user wants to search flights, compare flight prices, find cheapest flights, or get airline options.
+
+5. ecommerce_research_agent
+Use when the user wants to search products from Amazon/Flipkart, compare specs, compare ratings, summarize pros/cons, or find best products.
+
+6. hotel_comparison_agent
+Use when the user wants to search hotels, compare stays, filter by parking/breakfast/family-friendly options, or rank hotel results.
+
 Important:
 - Do NOT always choose rag_agent.
 - If the query needs current/latest/live data, choose web_search_agent.
 - If the query requires website interaction, choose browser_agent.
+- If the user is ANSWERING a question previously asked by the browser agent (like providing a date, city, or confirmation for a booking), you MUST choose browser_agent to maintain continuity!
 - If the query is clearly about uploaded documents, choose rag_agent.
+
+Recent Conversation History (for context):
+{history_text}
 
 User query:
 "{user_query}"
@@ -136,6 +178,9 @@ Respond with only one word:
 rag_agent
 web_search_agent
 browser_agent
+flight_search_agent
+ecommerce_research_agent
+hotel_comparison_agent
 """
 
     try:
@@ -146,7 +191,7 @@ browser_agent
 
         decision = (response.text or "").strip().lower()
 
-        if decision in ["browser_agent", "rag_agent", "web_search_agent"]:
+        if decision in ["browser_agent", "rag_agent", "web_search_agent", "flight_search_agent", "ecommerce_research_agent", "hotel_comparison_agent"]:
             logger.info(f"[Router] Gemini decision: {decision}")
             return decision
 
