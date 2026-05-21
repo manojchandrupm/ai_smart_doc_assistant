@@ -18,10 +18,10 @@ from services.chat_service import (
 from services.retrieval_service import retrieve_similar_chunks
 from services.user_query_response_service import generate_query_response
 from mcp_client import async_fetch_url
-from services.web_search_agent import run_web_search_agent
+from agent.web_search_agent import run_web_search_agent
 from services.router_service import route_query
 from routes.browser_agent import run_browser_agent
-from services.rag_agent import run_rag_agent
+from agent.rag_agent import run_rag_agent
 from agent.flight_search_agent import run_flight_search_agent
 from agent.ecommerce_research_agent import run_ecommerce_research_agent
 from agent.hotel_comparison_agent import run_hotel_comparison_agent
